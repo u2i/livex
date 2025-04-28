@@ -36,7 +36,7 @@ defmodule Livex.Routes do
 
     # Get the route pattern from the router
     %{route: pattern} =
-      Phoenix.Router.route_info(CompensationWeb.Router, "GET", current_path, host)
+      Phoenix.Router.route_info(socket.router, "GET", current_path, host)
 
     # Normalize incoming params to string keys
     params = for {k, v} <- params_map, into: %{}, do: {to_string(k), v}
