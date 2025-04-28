@@ -29,7 +29,6 @@ defmodule Livex.Schema.LivexViewTransformer do
         the URL reflects the current state of the LiveView.
         """
         def update_uri_from_assigns(socket) do
-          IO.inspect(socket, label: :assigns)
           Livex.Schema.LivexViewTransformer.update_uri_from_assigns(__MODULE__, socket)
         end
 
@@ -70,7 +69,8 @@ defmodule Livex.Schema.LivexViewTransformer do
   """
   @spec update_uri_from_assigns(module(), socket()) :: socket()
   def update_uri_from_assigns(module, socket) when is_atom(module) do
-    case Extension.get_entities(module, [:attributes]) ++ Extension.get_entities(module, [:components]) do
+    case Extension.get_entities(module, [:attributes]) ++
+           Extension.get_entities(module, [:components]) do
       [] ->
         update_uri_from_assigns_without_attributes(module, socket)
 
@@ -109,7 +109,7 @@ defmodule Livex.Schema.LivexViewTransformer do
     LiveView.push_event(
       socket,
       "update_url",
-      %{uri: Routes.new_path(socket, url_parameters])
+      %{uri: Routes.new_path(socket, url_parameters)}
     )
   end
 

@@ -224,6 +224,8 @@ defmodule Livex.Schema.Changeset do
   defp cast_field(value, :string) when is_binary(value), do: {:ok, value}
   defp cast_field(value, :string), do: {:ok, to_string(value)}
 
+  defp cast_field(value, :atom), do: {:ok, String.to_existing_atom(value)}
+
   defp cast_field(value, type) when is_atom(type) do
     case Ecto.Type.cast(type, value) do
       {:ok, v} -> {:ok, v}

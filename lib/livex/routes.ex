@@ -8,6 +8,24 @@ defmodule Livex.Routes do
 
   alias Livex.DeepConverter
 
+  # Recursively removes nil values from maps and nested maps
+  defp remove_nil_values(map) when is_map(map) do
+    map
+    |> Enum.map(fn {k, v} -> {k, remove_nil_values(v)} end)
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+    |> Map.new()
+  end
+
+  # Handle lists by mapping over each element
+  defp remove_nil_values(list) when is_list(list) do
+    list
+    |> Enum.map(&remove_nil_values/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  # Everything else (numbers, strings, tuples, etc.) is left as-is
+  defp remove_nil_values(other), do: other
+
   @doc """
   Generates a new path based on the current LiveView's route pattern and provided parameters.
 
@@ -58,10 +76,15 @@ defmodule Livex.Routes do
       end)
 
     # Drop the consumed keys and build the query string
-    other_params = Map.drop(params, path_vars)
+    other_params =
+      params
+      |> Map.drop(path_vars)
+      |> remove_nil_values()
 
     if map_size(other_params) > 0 do
-      substituted_path <> "?" <> Phoenix.VerifiedRoutes.__encode_query__(other_params)
+      substituted_path <>
+        "?" <>
+        Phoenix.VerifiedRoutes.__encode_query__(other_params)
     else
       substituted_path
     end
