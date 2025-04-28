@@ -47,6 +47,7 @@ defmodule Livex.LivexView do
       on_mount {__MODULE__, :default}
 
       def on_mount(:default, params, _session, socket) do
+        IO.puts("mounting")
         socket =
           socket
           |> __MODULE__.apply_params_to_assigns(params)
