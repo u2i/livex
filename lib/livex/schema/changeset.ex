@@ -55,6 +55,7 @@ defmodule Livex.Schema.Changeset do
               end
 
             match?({:embed, _}, type) or match?({:embed, :many, _}, type) ->
+              # We'll handle embeds separately with cast_embed
               acc
 
             true ->
@@ -84,6 +85,7 @@ defmodule Livex.Schema.Changeset do
 
   @doc """
   Casts and merges an embedded map or list of maps for the given field.
+  Supports recursive embedding for nested structures.
   """
   @spec cast_embed(t, atom) :: t
   def cast_embed(%__MODULE__{} = cs, field) do
@@ -95,7 +97,10 @@ defmodule Livex.Schema.Changeset do
         case {type, raw} do
           {{:embed, inner_types}, value} when is_map(value) ->
             base = Map.get(cs.data, field, %{})
-            nested = cast({base, inner_types}, value, Map.keys(inner_types))
+
+            nested =
+              cast_and_process_nested_embeds({base, inner_types}, value, Map.keys(inner_types))
+
             update_embed_change(cs, field, nested)
 
           {{:embed, :many, inner_types}, values} when is_list(values) ->
@@ -106,7 +111,14 @@ defmodule Livex.Schema.Changeset do
               |> Enum.with_index()
               |> Enum.reduce([], fn {val, idx}, acc ->
                 existing = Enum.at(base_list, idx, %{})
-                nested_cs = cast({existing, inner_types}, val, Map.keys(inner_types))
+
+                nested_cs =
+                  cast_and_process_nested_embeds(
+                    {existing, inner_types},
+                    val,
+                    Map.keys(inner_types)
+                  )
+
                 if nested_cs.changes != %{}, do: [nested_cs | acc], else: acc
               end)
 
@@ -123,6 +135,23 @@ defmodule Livex.Schema.Changeset do
       :error ->
         cs
     end
+  end
+
+  # Process nested embeds recursively
+  defp cast_and_process_nested_embeds({data, types}, params, permitted) do
+    cs = cast({data, types}, params, permitted)
+
+    # Process any nested embeds within this changeset
+    Enum.reduce(types, cs, fn
+      {field, {:embed, _inner_types}}, acc ->
+        cast_embed(acc, field)
+
+      {field, {:embed, :many, _inner_types}}, acc ->
+        cast_embed(acc, field)
+
+      {_field, _type}, acc ->
+        acc
+    end)
   end
 
   defp update_embed_change(cs, field, %__MODULE__{changes: changes} = nested) do
@@ -177,6 +206,23 @@ defmodule Livex.Schema.Changeset do
     Enum.reduce(changes, data, fn
       {field, %__MODULE__{} = nested_cs}, acc -> Map.put(acc, field, apply_changes(nested_cs))
       {field, value}, acc -> Map.put(acc, field, value)
+    end)
+  end
+
+  @doc """
+  Casts all embeds in the changeset based on the types.
+  """
+  @spec cast_all_embeds(t) :: t
+  def cast_all_embeds(%__MODULE__{types: types} = cs) do
+    Enum.reduce(types, cs, fn
+      {field, {:embed, _inner_types}}, acc ->
+        cast_embed(acc, field)
+
+      {field, {:embed, :many, _inner_types}}, acc ->
+        cast_embed(acc, field)
+
+      {_field, _type}, acc ->
+        acc
     end)
   end
 

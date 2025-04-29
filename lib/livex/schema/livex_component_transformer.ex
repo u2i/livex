@@ -81,7 +81,7 @@ defmodule Livex.Schema.LivexComponentTransformer do
     private_assigns = get_in(socket.private, [Access.key(:assigns, %{})]) || %{}
 
     if private_assigns != %{} do
-      send(self(), {:update_component, [:modal], private_assigns})
+      send(self(), {:update_component, socket.assigns.path, private_assigns})
     end
 
     socket
@@ -93,7 +93,7 @@ defmodule Livex.Schema.LivexComponentTransformer do
   """
   @spec push_delete(socket()) :: socket()
   def push_delete(socket) do
-    send(self(), {:update_component, [:modal], nil})
+    send(self(), {:update_component, socket.assigns.path, nil})
 
     socket
   end

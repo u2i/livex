@@ -138,9 +138,9 @@ defmodule Livex.Schema.LivexViewTransformer do
   @spec apply_params_to_assigns(module(), socket(), map()) :: socket()
   def apply_params_to_assigns(module, socket, params) do
     # Apply changeset to convert and validate parameters
-    validated_assigns =
-      module.changeset(socket.assigns, params)
-      |> Changeset.apply_changes()
+    changeset = module.changeset(socket.assigns, params)
+
+    validated_assigns = Changeset.apply_changes(changeset)
 
     # Ensure all attributes and components have at least their default values
     socket
@@ -152,18 +152,25 @@ defmodule Livex.Schema.LivexViewTransformer do
   # Updates socket assigns with processed values and defaults
   @spec merge_assigns_with_defaults(socket(), map(), module()) :: socket()
   defp merge_assigns_with_defaults(socket, assigns, module) do
-    assigns
-    |> apply_default_attributes(module, [:attributes])
-    |> apply_default_attributes(module, [:components])
-    |> then(&%{socket | assigns: &1})
+    attributes = Extension.get_entities(module, [:attributes])
+    components = Extension.get_entities(module, [:components])
+
+    updated_assigns =
+      assigns
+      |> apply_default_attributes(module, [:attributes])
+      |> apply_default_attributes(module, [:components])
+
+    %{socket | assigns: updated_assigns}
   end
 
   # Ensures all fields of a given type have at least their default values
   @spec apply_default_attributes(map(), module(), [:attributes | :components]) :: map()
   defp apply_default_attributes(assigns, module, entity_type) do
-    Extension.get_entities(module, entity_type)
-    |> Enum.reduce(assigns, fn entity, acc ->
-      Map.put_new(acc, entity.name, entity.default)
+    entities = Extension.get_entities(module, entity_type)
+
+    Enum.reduce(entities, assigns, fn entity, acc ->
+      result = Map.put_new(acc, entity.name, entity.default)
+      result
     end)
   end
 
