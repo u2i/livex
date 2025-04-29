@@ -152,9 +152,6 @@ defmodule Livex.Schema.LivexViewTransformer do
   # Updates socket assigns with processed values and defaults
   @spec merge_assigns_with_defaults(socket(), map(), module()) :: socket()
   defp merge_assigns_with_defaults(socket, assigns, module) do
-    attributes = Extension.get_entities(module, [:attributes])
-    components = Extension.get_entities(module, [:components])
-
     updated_assigns =
       assigns
       |> apply_default_attributes(module, [:attributes])
