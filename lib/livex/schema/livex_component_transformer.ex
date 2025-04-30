@@ -88,15 +88,16 @@ defmodule Livex.Schema.LivexComponentTransformer do
     |> initialize_private()
   end
 
-  @doc """
-  Sends a message to delete the component.
-  """
-  @spec push_delete(socket()) :: socket()
-  def push_delete(socket) do
-    send(self(), {:update_component, socket.assigns.path, nil})
+  # @doc """
+  #  Sends a message to delete the component.
+  #  """
 
-    socket
-  end
+  # @spec push_delete(socket()) :: socket()
+  # def push_delete(socket) do
+  #   send(self(), {:update_component, assigns(socket).path, nil})
+  #
+  #   socket
+  # end
 
   @doc """
   Assigns a value to a key in the socket assigns and tracks it in private assigns if it's a schema field.

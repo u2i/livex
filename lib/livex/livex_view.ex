@@ -46,12 +46,11 @@ defmodule Livex.LivexView do
 
       on_mount {__MODULE__, :default}
 
-      def on_mount(:default, params, _session, socket) do
-        IO.puts("mounting")
+      def on_mount(:default, params, session, socket) do
+        {:cont, socket} = __MODULE__.update_assigns_from_uri(params, session, socket)
 
         socket =
           socket
-          |> __MODULE__.apply_params_to_assigns(params)
           |> Phoenix.LiveView.attach_hook(
             :update_uri,
             :after_render,
@@ -64,6 +63,11 @@ defmodule Livex.LivexView do
           )
 
         {:cont, socket}
+      end
+
+      @impl true
+      def handle_event(event, %{"__target_path" => path_str} = params, socket) do
+        __MODULE__.dispatch_component_event(event, params, socket)
       end
     end
   end

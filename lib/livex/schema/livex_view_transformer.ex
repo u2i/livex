@@ -56,6 +56,15 @@ defmodule Livex.Schema.LivexViewTransformer do
         def apply_params_to_assigns(socket, params) do
           Livex.Schema.LivexViewTransformer.apply_params_to_assigns(__MODULE__, socket, params)
         end
+
+        def dispatch_component_event(event, params, socket) do
+          Livex.Schema.LivexViewTransformer.dispatch_component_event(
+            __MODULE__,
+            event,
+            params,
+            socket
+          )
+        end
       end
 
     {:ok, Transformer.eval(dsl_state, [], hooks)}
@@ -123,8 +132,11 @@ defmodule Livex.Schema.LivexViewTransformer do
   def update_assigns_from_uri(module, params, uri, socket)
       when is_atom(module) and is_map(params) do
     socket
+    |> IO.inspect(label: :before)
     |> Component.assign(:uri, uri)
     |> module.apply_params_to_assigns(params)
+    |> mount_components(module)
+    |> IO.inspect(label: :after_mount)
     |> then(&{:cont, &1})
   end
 
@@ -133,42 +145,122 @@ defmodule Livex.Schema.LivexViewTransformer do
 
   Applies the changeset to the parameters, ensuring type safety, and updates
   the socket assigns with the resulting values. Also ensures all required fields
-  have default values when not provided.
+  have default values when not provided. Additionally, calls mount on each component
+  module to allow components to initialize their state.
   """
   @spec apply_params_to_assigns(module(), socket(), map()) :: socket()
   def apply_params_to_assigns(module, socket, params) do
     # Apply changeset to convert and validate parameters
-    changeset = module.changeset(socket.assigns, params)
+    IO.inspect(socket.assigns, label: :socket_assigns)
+    changeset = module.changeset(socket.assigns, params |> IO.inspect(label: :params))
 
     validated_assigns = Changeset.apply_changes(changeset)
 
     # Ensure all attributes and components have at least their default values
+    #  socket = merge_assigns_with_defaults(socket, validated_assigns, module)
+
+    # Call mount on each component module
+    socket = Map.put(socket, :assigns, validated_assigns)
+
     socket
-    |> merge_assigns_with_defaults(validated_assigns, module)
   end
 
-  # Private helper functions
+  @doc """
+  Mounts all components in the socket assigns.
 
-  # Updates socket assigns with processed values and defaults
-  @spec merge_assigns_with_defaults(socket(), map(), module()) :: socket()
-  defp merge_assigns_with_defaults(socket, assigns, module) do
-    updated_assigns =
-      assigns
-      |> apply_default_attributes(module, [:attributes])
-      |> apply_default_attributes(module, [:components])
+  Uses a simple path-based traversal to mount components at any nesting level.
+  """
+  @spec mount_components(socket(), module()) :: socket()
+  def mount_components(socket, module) do
+    component_entities = Extension.get_entities(module, [:components])
 
-    %{socket | assigns: updated_assigns}
-  end
+    # Process each top-level component
+    Enum.reduce(component_entities, socket, fn component, acc_socket ->
+      nested_name = component.name
+      nested_module = component.related
+      nested_path = [nested_name]
 
-  # Ensures all fields of a given type have at least their default values
-  @spec apply_default_attributes(map(), module(), [:attributes | :components]) :: map()
-  defp apply_default_attributes(assigns, module, entity_type) do
-    entities = Extension.get_entities(module, entity_type)
-
-    Enum.reduce(entities, assigns, fn entity, acc ->
-      result = Map.put_new(acc, entity.name, entity.default)
-      result
+      mount_component_at_path(acc_socket, nested_path, nested_module)
     end)
+  end
+
+  @doc """
+  Mounts a component at a specific path in the socket assigns.
+
+  Traverses the path to find the component, mounts it if needed,
+  then recursively processes any child components only if the component exists.
+  """
+  @spec mount_component_at_path(socket(), [atom()], module()) :: socket()
+  def mount_component_at_path(socket, path, component_module) do
+    # Return unchanged socket if socket is nil
+    if is_nil(socket) do
+      socket
+    else
+      # Get component struct at the given path
+      component_struct = assigns_from_path(socket, path)
+
+      # Only proceed if we have a component at this path
+      if is_nil(component_struct |> IO.inspect(label: :compstruct)) do
+        IO.inspect(path, label: :stopping)
+        socket
+      else
+        IO.inspect(path, label: :going_in)
+        IO.inspect(component_module, label: :module)
+        # Mount the component if it has a mount function
+        socket =
+          if function_exported?(component_module, :mount, 2) do
+            component_context = {socket, path}
+
+            case component_module.mount(component_struct, component_context) do
+              {:ok, {updated_component_struct, _path}} ->
+                # Update the socket assigns at the specific path
+                updated_component_struct
+
+              _ ->
+                socket
+            end
+          else
+            socket
+          end
+
+        # Process child components only if we have a component at this path
+        nested_components = Extension.get_entities(component_module, [:components])
+
+        Enum.reduce(nested_components, socket, fn nested_component, acc_socket ->
+          nested_name = nested_component.name
+          nested_module = nested_component.related
+          nested_path = path ++ [nested_name]
+
+          # Recursively mount the nested component
+          mount_component_at_path(acc_socket, nested_path, nested_module)
+        end)
+      end
+    end
+  end
+
+  def assigns_from_path(socket, [one]) do
+    socket.assigns[one]
+  end
+
+  def assigns_from_path(socket, path) do
+    [head | tail] = path
+
+    tail
+    |> Enum.map(&Access.key(&1, %{}))
+    |> then(fn path ->
+      get_in(socket.assigns[head] || %{}, path)
+    end)
+  end
+
+  @doc """
+  Updates a value at a specific path in the socket assigns.
+
+  Helper function to update deeply nested values in the socket.
+  """
+  @spec put_in_socket(socket(), [atom()], any()) :: socket()
+  def put_in_socket(socket, path, value) do
+    updated_assigns = put_in(socket.assigns, path, value)
+    %{socket | assigns: updated_assigns}
   end
 
   # Extracts component data for URL generation.
@@ -187,20 +279,79 @@ defmodule Livex.Schema.LivexViewTransformer do
     end)
   end
 
-  # Gets all field names from a component's schema
-  @spec get_component_field_names(module()) :: [atom()]
+  # Gets component field structure with nested components
+  @spec get_component_field_names(module()) :: %{
+          attributes: [atom()],
+          components: %{atom() => module()}
+        }
   defp get_component_field_names(component_module) do
-    (Extension.get_entities(component_module, [:attributes]) ++
-       Extension.get_entities(component_module, [:components]))
-    |> Enum.map(& &1.name)
+    attributes =
+      Extension.get_entities(component_module, [:attributes])
+      |> Enum.map(& &1.name)
+
+    components =
+      Extension.get_entities(component_module, [:components])
+      |> Enum.map(fn component -> {component.name, component.related} end)
+      |> Enum.into(%{})
+
+    %{attributes: attributes, components: components}
   end
 
   # Extracts non-nil values from a struct based on specified fields
-  @spec extract_non_nil_fields(map(), [atom()]) :: map()
-  defp extract_non_nil_fields(struct, field_names) do
-    struct
-    |> Map.take(field_names)
-    |> Enum.reject(fn {_, value} -> is_nil(value) end)
-    |> Enum.into(%{})
+  # and recursively processes nested components
+  @spec extract_non_nil_fields(map(), %{attributes: [atom()], components: %{atom() => module()}}) ::
+          map()
+  defp extract_non_nil_fields(struct, %{attributes: attribute_names, components: components}) do
+    # Extract attribute values
+    attribute_values =
+      struct
+      |> Map.take(attribute_names)
+      |> Enum.reject(fn {_, value} -> is_nil(value) end)
+      |> Enum.into(%{})
+
+    # Process nested components
+    component_values =
+      Enum.reduce(components, %{}, fn {component_name, component_module}, acc ->
+        case Map.get(struct, component_name) do
+          nil ->
+            acc
+
+          component_struct ->
+            nested_field_structure = get_component_field_names(component_module)
+            nested_values = extract_non_nil_fields(component_struct, nested_field_structure)
+
+            if map_size(nested_values) > 0 do
+              Map.put(acc, component_name, nested_values)
+            else
+              acc
+            end
+        end
+      end)
+
+    # Merge attribute and component values
+    Map.merge(attribute_values, component_values)
+  end
+
+  def dispatch_component_event(module, event, %{"__target_path" => path_str} = params, socket) do
+    path = String.split(path_str, "/") |> Enum.map(&String.to_existing_atom(&1))
+
+    dispatch_component_event_impl(module, event, path, params, {socket, path})
+  end
+
+  defp dispatch_component_event_impl(module, event, [head], params, {socket, path}) do
+    component =
+      Extension.get_entities(module, [:components])
+      |> Enum.find(&(&1.name == head))
+
+    {return, {socket, _}} = component.related.handle_event(event, params, {socket, path})
+    {return, socket}
+  end
+
+  defp dispatch_component_event_impl(module, event, [_head | tail], params, {socket, path}) do
+    component =
+      Extension.get_entities(module, [:components])
+      |> Enum.find(&(&1.name == Enum.at(path, 0)))
+
+    dispatch_component_event_impl(component.related, event, tail, params, {socket, path})
   end
 end

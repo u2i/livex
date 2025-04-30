@@ -18,6 +18,42 @@ defmodule Livex.Schema.ChangesetTransformer do
         def __changeset__ do
           ChangesetTransformer.__changeset__(__MODULE__)
         end
+
+        def create_component(socket_path, id, assigns) do
+          ChangesetTransformer.create_component(__MODULE__, socket_path, id, assigns)
+        end
+
+        def assign_({socket, path}, map) when is_map(map) do
+          Enum.reduce(map, {socket, path}, fn {k, v}, acc ->
+            assign_(acc, k, v)
+          end)
+        end
+
+        def assign_({socket, path}, id, value) do
+          [head | tail] = path ++ [id]
+
+          tail
+          |> Enum.map(&Access.key(&1, %{}))
+          |> then(fn path ->
+            put_in(socket.assigns[head] || %{}, path, value)
+          end)
+          |> then(&assign(socket, head, &1))
+          |> then(&{&1, path})
+        end
+
+        def assign_new_({socket, path} = socket_path, id, f) do
+          unless assigns(socket_path)[id] do
+            assign_(socket_path, id, f.())
+          else
+            socket_path
+          end
+        end
+
+        def assigns({socket, path}) do
+          path
+          |> Enum.map(&Access.key(&1, %{}))
+          |> then(fn path -> get_in(socket.assigns, path) end)
+        end
       end
 
     {:ok, Spark.Dsl.Transformer.eval(dsl_state, [], validate)}
@@ -57,5 +93,25 @@ defmodule Livex.Schema.ChangesetTransformer do
 
     (attributes ++ components)
     |> Map.new()
+  end
+
+  def create_component(module, %Phoenix.LiveView.Socket{} = socket, id, assigns) do
+    {socket, _} = create_component(module, {socket, []}, id, assigns)
+    socket
+  end
+
+  def create_component(module, {socket, og_path}, id, assigns) do
+    component = Extension.get_entities(module, [:components]) |> Enum.find(&(&1.name == id))
+
+    {socket, _path} =
+      module.assign_({socket, og_path ++ [component.name]}, %{
+        id: component.name,
+        path: og_path ++ [component.name]
+      })
+
+    {:ok, {socket, _path}} =
+      component.related.mount(assigns, {socket, og_path ++ [component.name]})
+
+    {socket, og_path}
   end
 end

@@ -96,7 +96,14 @@ defmodule Livex.Schema.Changeset do
       {:ok, raw} ->
         case {type, raw} do
           {{:embed, inner_types}, value} when is_map(value) ->
-            base = Map.get(cs.data, field, %{})
+            base =
+              Map.get(
+                cs.data |> IO.inspect(label: :cs_data),
+                field |> IO.inspect(label: :field),
+                %{}
+              ) ||
+                %{}
+                |> IO.inspect(label: :base)
 
             nested =
               cast_and_process_nested_embeds({base, inner_types}, value, Map.keys(inner_types))

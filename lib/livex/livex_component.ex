@@ -41,6 +41,23 @@ defmodule Livex.LivexComponent do
         use Schema
 
         def __live__, do: %{kind: :component, layout: false}
+
+        def push_delete({socket, [key] = path}) do
+          # if path is just [:foo], remove the :foo assign entirely
+          {Phoenix.Component.assign(socket, key, nil), path}
+        end
+
+        def push_delete({socket, path}) do
+          [head | tail] = path
+
+          tail
+          |> Enum.map(&Access.key(&1, %{}))
+          |> then(fn path ->
+            put_in(socket.assigns[head] || %{}, path, nil)
+          end)
+          |> then(&Phoenix.Component.assign(socket, head, &1))
+          |> then(&{&1, path})
+        end
       end
 
     [conditional, imports]
