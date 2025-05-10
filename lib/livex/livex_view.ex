@@ -51,7 +51,7 @@ defmodule Livex.LivexView do
           {:reply, msg, socket}
         end
       else
-        def handle_event(event, params, socket) do
+        def handle_event(_event, _params, socket) do
           pre_render(socket)
         end
       end
@@ -66,7 +66,7 @@ defmodule Livex.LivexView do
         end
       else
         @impl true
-        def handle_params(params, uri, socket) do
+        def handle_params(_params, _uri, socket) do
           pre_render(socket)
         end
       end
@@ -81,7 +81,22 @@ defmodule Livex.LivexView do
         end
       else
         @impl true
-        def handle_info(msg, socket) do
+        def handle_info(_msg, socket) do
+          pre_render(socket)
+        end
+      end
+
+      if Module.defines?(__MODULE__, {:handle_async, 3}, :def) do
+        defoverridable handle_async: 3
+
+        @impl true
+        def handle_async(name, result, socket) do
+          {:noreply, socket} = super(name, result, socket)
+          pre_render(socket)
+        end
+      else
+        @impl true
+        def handle_async(_name, _result, socket) do
           pre_render(socket)
         end
       end
@@ -128,12 +143,19 @@ defmodule Livex.LivexView do
       |> Phoenix.LiveView.attach_hook(
         :component_action,
         :handle_event,
-        fn "__component_action", params, socket ->
-          Livex.Handlers.handle_component_event(
-            module,
-            params,
-            socket
-          )
+        fn
+          "__component_action", params, socket ->
+            {:noreply, socket} =
+              Livex.Handlers.handle_component_event(
+                module,
+                params,
+                socket
+              )
+
+            {:halt, socket}
+
+          _, _, socket ->
+            {:cont, socket}
         end
       )
       |> Phoenix.LiveView.attach_hook(

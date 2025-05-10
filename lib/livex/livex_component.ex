@@ -65,16 +65,41 @@ defmodule Livex.LivexComponent do
         super(assigns) |> Livex.LivexComponent.inject_after_div(__MODULE__, assigns)
       end
 
-      defoverridable handle_event: 3
+      if Module.defines?(__MODULE__, {:handle_event, 3}, :def) do
+        defoverridable handle_event: 3
 
-      def handle_event(event, params, socket) do
-        case super(event, params, socket) do
-          {:noreply, socket} ->
-            pre_render(socket)
+        @impl true
+        def handle_event(event, params, socket) do
+          super(event, params, socket)
+          |> handle_event_result()
+        end
 
-          {:reply, msg, socket} ->
-            {:noreply, socket} = pre_render(socket)
-            {:reply, msg, socket}
+        def handle_event_result({:noreply, socket}) do
+          pre_render(socket)
+        end
+
+        def handle_event_result({:reply, msg, socket}) do
+          {:noreply, socket} = pre_render(socket)
+          {:reply, msg, socket}
+        end
+      else
+        def handle_event(event, params, socket) do
+          pre_render(socket)
+        end
+      end
+
+      if Module.defines?(__MODULE__, {:handle_async, 3}, :def) do
+        defoverridable handle_async: 3
+
+        @impl true
+        def handle_async(name, result, socket) do
+          {:noreply, socket} = super(name, result, socket)
+          pre_render(socket)
+        end
+      else
+        @impl true
+        def handle_async(_name, _result, socket) do
+          pre_render(socket)
         end
       end
     end
