@@ -14,20 +14,6 @@ defmodule Livex.LivexView do
       defdelegate push_js(socket, event), to: Livex.Utils
       defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
 
-      @impl true
-      def handle_info({:__dispatch_event, fun, data}, socket) do
-        fun.(data, socket)
-      end
-
-      @impl true
-      def handle_event("__component_action", params, socket) do
-        Livex.Handlers.handle_component_event(
-          __MODULE__,
-          params,
-          socket
-        )
-      end
-
       on_mount {__MODULE__, :__livex}
 
       def on_mount(:__livex, params, session, socket) do
@@ -47,16 +33,26 @@ defmodule Livex.LivexView do
         super(assigns) |> Livex.RenderedManipulator.wrap_in_div(__MODULE__, assigns)
       end
 
-      defoverridable handle_event: 3
+      if Module.defines?(__MODULE__, {:handle_event, 3}, :def) do
+        defoverridable handle_event: 3
 
-      def handle_event(event, params, socket) do
-        case super(event, params, socket) do
-          {:noreply, socket} ->
-            pre_render(socket)
+        @impl true
+        def handle_event(event, params, socket) do
+          super(event, params, socket)
+          |> handle_event_result()
+        end
 
-          {:reply, msg, socket} ->
-            {:noreply, socket} = pre_render(socket)
-            {:reply, msg, socket}
+        def handle_event_result({:noreply, socket}) do
+          pre_render(socket)
+        end
+
+        def handle_event_result({:reply, msg, socket}) do
+          {:noreply, socket} = pre_render(socket)
+          {:reply, msg, socket}
+        end
+      else
+        def handle_event(event, params, socket) do
+          pre_render(socket)
         end
       end
 
@@ -75,16 +71,18 @@ defmodule Livex.LivexView do
         end
       end
 
-      defoverridable handle_info: 2
+      if Module.defines?(__MODULE__, {:handle_info, 2}, :def) do
+        defoverridable handle_info: 2
 
-      def handle_info(msg, socket) do
-        case super(msg, socket) do
-          {:noreply, socket} ->
-            pre_render(socket)
-
-          {:reply, msg, socket} ->
-            {:noreply, socket} = pre_render(socket)
-            {:reply, msg, socket}
+        @impl true
+        def handle_info(msg, socket) do
+          {:noreply, socket} = super(msg, socket)
+          pre_render(socket)
+        end
+      else
+        @impl true
+        def handle_info(msg, socket) do
+          pre_render(socket)
         end
       end
     end
@@ -125,6 +123,17 @@ defmodule Livex.LivexView do
         :handle_params,
         fn params, uri, socket ->
           Livex.LivexView.assign_from_uri(module, params, uri, socket)
+        end
+      )
+      |> Phoenix.LiveView.attach_hook(
+        :component_action,
+        :handle_event,
+        fn "__component_action", params, socket ->
+          Livex.Handlers.handle_component_event(
+            module,
+            params,
+            socket
+          )
         end
       )
       |> Phoenix.LiveView.attach_hook(
