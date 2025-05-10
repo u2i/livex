@@ -4,7 +4,7 @@ defmodule Livex.PhoenixWeb.Layouts do
   def app(assigns) do
     ~H"""
     <div class="app-layout">
-      <%= @inner_content %>
+      {@inner_content}
     </div>
     """
   end

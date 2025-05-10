@@ -1,65 +1,122 @@
 defmodule Livex.LivexComponent do
   defmodule Schema do
-    @moduledoc """
-    Injects the Livex DSL into your LiveView modules,
-    and automatically generates a `changeset/2` based on
-    declared `:attributes` and `:components`.
-    """
-
     use Spark.Dsl,
-      default_extensions: [
-        extensions: [Livex.Schema.LivexComponentDsl]
-      ]
+      default_extensions: [extensions: [Livex.Schema.LivexComponentDsl]]
   end
 
-  defmacro __using__(opts \\ []) do
-    conditional =
-      if __CALLER__.module != Phoenix.LiveView.Helpers do
-        quote do: import(Phoenix.LiveView.Helpers)
+  defmacro __using__(_opts \\ []) do
+    quote do
+      use Schema
+      import Phoenix.LiveView.Helpers
+
+      @impl true
+      def handle_event("__component_action", params, socket) do
+        Livex.Handlers.handle_component_event(
+          __MODULE__,
+          params,
+          socket
+        )
       end
 
-    imports =
-      quote bind_quoted: [opts: opts] do
-        import Phoenix.LiveView
-        @behaviour Phoenix.LiveComponent
-        @before_compile Phoenix.LiveView.Renderer
+      alias Phoenix.LiveView.Socket
 
-        @doc false
+      defdelegate push_emit(socket, event), to: Livex.Utils
+      defdelegate push_js(socket, event), to: Livex.Utils
+      defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
 
-        import Kernel, except: [def: 2, defp: 2]
-        import Phoenix.Component, except: [assign: 2, assign: 3]
-        import Phoenix.Component.Declarative
-        require Phoenix.Template
+      @before_compile unquote(__MODULE__)
+    end
+  end
 
-        for {prefix_match, value} <- Phoenix.Component.Declarative.__setup__(__MODULE__, opts) do
-          @doc false
-          def __global__?(unquote(prefix_match)), do: unquote(value)
+  defmacro __before_compile__(_env) do
+    quote do
+      @doc false
+      @update_defined? Module.defines?(__MODULE__, {:update, 2}, :def)
+
+      if @update_defined? do
+        defoverridable update: 2
+
+        def update(assigns, socket) do
+          Livex.LivexComponent.override_update(
+            assigns,
+            socket,
+            Process.get(:__current_params),
+            __MODULE__,
+            &super(&1, &2)
+          )
         end
-
-        import Livex.LivexComponent
-
-        use Schema
-
-        def __live__, do: %{kind: :component, layout: false}
-
-        def push_delete({socket, [key] = path}) do
-          # if path is just [:foo], remove the :foo assign entirely
-          {Phoenix.Component.assign(socket, key, nil), path}
-        end
-
-        def push_delete({socket, path}) do
-          [head | tail] = path
-
-          tail
-          |> Enum.map(&Access.key(&1, %{}))
-          |> then(fn path ->
-            put_in(socket.assigns[head] || %{}, path, nil)
-          end)
-          |> then(&Phoenix.Component.assign(socket, head, &1))
-          |> then(&{&1, path})
+      else
+        def update(assigns, socket) do
+          Livex.LivexComponent.override_update(
+            assigns,
+            socket,
+            Process.get(:__current_params),
+            __MODULE__,
+            nil
+          )
         end
       end
 
-    [conditional, imports]
+      defoverridable render: 1
+
+      def render(assigns) do
+        super(assigns) |> Livex.LivexComponent.inject_after_div(__MODULE__, assigns)
+      end
+
+      defoverridable handle_event: 3
+
+      def handle_event(event, params, socket) do
+        case super(event, params, socket) do
+          {:noreply, socket} ->
+            pre_render(socket)
+
+          {:reply, msg, socket} ->
+            {:noreply, socket} = pre_render(socket)
+            {:reply, msg, socket}
+        end
+      end
+    end
+  end
+
+  alias Spark.Dsl.Extension
+  alias Livex.{ParamsMapper, RenderedManipulator}
+  alias Phoenix.Component
+
+  def override_update(%{__dispatch_event: fun, data: data} = _assigns, socket, _, _) do
+    fun.(data, socket)
+    socket
+  end
+
+  def override_update(assigns, socket, current_params, module, super) do
+    {:ok, socket} =
+      socket
+      |> maybe_map_params(module, current_params, assigns)
+      |> assign_all_or_call_original(assigns, super)
+
+    {:noreply, socket} = module.pre_render(socket)
+    {:ok, socket}
+  end
+
+  defp maybe_map_params(socket, _, nil, _), do: socket
+
+  defp maybe_map_params(socket, module, current_params, assigns) do
+    ParamsMapper.map_params(module, current_params, "_#{assigns.id}")
+    |> then(&Component.assign(socket, &1))
+  end
+
+  defp assign_all_or_call_original(socket, assigns, super) when not is_nil(super),
+    do: super.(assigns, socket)
+
+  defp assign_all_or_call_original(socket, assigns, _) do
+    {:ok,
+     assigns
+     |> Enum.filter(&(socket.assigns[&1 |> elem(0)] != &1 |> elem(1)))
+     |> Map.new()
+     |> then(&Phoenix.Component.assign(socket, &1))}
+  end
+
+  def inject_after_div(%Phoenix.LiveView.Rendered{} = rendered, module, assigns) do
+    attributes = Extension.get_entities(module, [:attributes])
+    RenderedManipulator.manipulate_rendered(:inject, rendered, attributes, assigns)
   end
 end
