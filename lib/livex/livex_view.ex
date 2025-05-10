@@ -14,6 +14,7 @@ defmodule Livex.LivexView do
       defdelegate push_js(socket, event), to: Livex.Utils
       defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
 
+      @impl true
       def handle_info({:__dispatch_event, fun, data}, socket) do
         fun.(data, socket)
       end
@@ -25,14 +26,6 @@ defmodule Livex.LivexView do
           params,
           socket
         )
-      end
-
-      def stream_new(socket, key, fun) do
-        if Map.has_key?(socket.assigns.__changed__, key) do
-          assign(socket, key, fun.())
-        else
-          socket
-        end
       end
 
       on_mount {__MODULE__, :__livex}
@@ -67,11 +60,19 @@ defmodule Livex.LivexView do
         end
       end
 
-      defoverridable handle_params: 3
+      if Module.defines?(__MODULE__, {:handle_params, 3}, :def) do
+        defoverridable handle_params: 3
 
-      def handle_params(params, uri, socket) do
-        {:noreply, socket} = super(params, uri, socket)
-        pre_render(socket)
+        @impl true
+        def handle_params(params, uri, socket) do
+          {:noreply, socket} = super(params, uri, socket)
+          pre_render(socket)
+        end
+      else
+        @impl true
+        def handle_params(params, uri, socket) do
+          pre_render(socket)
+        end
       end
 
       defoverridable handle_info: 2

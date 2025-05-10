@@ -36,6 +36,7 @@ defmodule Livex.LivexComponent do
       if @update_defined? do
         defoverridable update: 2
 
+        @impl true
         def update(assigns, socket) do
           Livex.LivexComponent.override_update(
             assigns,
@@ -46,6 +47,7 @@ defmodule Livex.LivexComponent do
           )
         end
       else
+        @impl true
         def update(assigns, socket) do
           Livex.LivexComponent.override_update(
             assigns,
