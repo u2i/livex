@@ -20,7 +20,7 @@ defmodule Livex.LivexComponent do
 
       alias Phoenix.LiveView.Socket
 
-      defdelegate push_emit(socket, event), to: Livex.Utils
+      defdelegate push_emit(socket, event, opts), to: Livex.Utils
       defdelegate push_js(socket, event), to: Livex.Utils
       defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
 

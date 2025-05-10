@@ -125,11 +125,11 @@ defmodule Livex.JSX do
   @doc false
   # Builds the JS.push command on an existing JS struct.
   def build_push_op(%Phoenix.LiveView.JS{} = js, resolved_target, client_event_name, opts_list) do
-    values_map = Keyword.get(opts_list, :values, %{})
+    value_map = Keyword.get(opts_list, :value, %{})
     # `resolved_target` is now passed directly
     JS.push(js, "#{client_event_name}",
       target: resolved_target,
-      value: values_map
+      value: value_map
     )
   end
 

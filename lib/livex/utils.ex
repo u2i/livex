@@ -3,13 +3,13 @@ defmodule Livex.Utils do
   alias Phoenix.LiveView.Socket
   alias Phoenix.Component
 
-  def push_emit(%Socket{} = socket, event) do
+  def push_emit(%Socket{} = socket, event, opts \\ []) do
     push_js(
       socket,
       JSX.build_push_op(
         Livex.JSX.get_target_from_assigns(socket.assigns),
         socket.assigns[String.to_existing_atom("phx-#{event}")],
-        []
+        opts
       )
     )
   end
