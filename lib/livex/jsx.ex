@@ -32,9 +32,38 @@ defmodule Livex.JSX do
   # --- Emit Macros ---
 
   @doc """
-  Generates a JS command to emit a client-side event, chained on an existing JS struct, with options.
-  Example: `Livex.JS.emit(my_js_chain, "event_suffix", values: %{...})`
+  Generates a JS command to emit a client-side event.
+  
+  ## Variants
+  
+  * `emit(js, event_suffix, opts)` - Chain on an existing JS struct with options
+  * `emit(js, event_suffix)` - Chain on an existing JS struct without options
+  * `emit(event_suffix, opts)` - Create a new JS chain with options
+  * `emit(event_suffix)` - Create a new JS chain without options
+  
+  ## Parameters
+  
+  * `js` - An existing Phoenix.LiveView.JS struct to chain operations on
+  * `event_suffix` - The suffix of the event to emit (e.g., "close" for "phx-close")
+  * `opts` - Options for the event, such as `values: %{...}`
+  
+  ## Examples
+  
+  ```elixir
+  # With existing JS chain and options
+  JS.transition(...) |> JSX.emit("close", values: %{reason: "cancelled"})
+  
+  # With existing JS chain, no options
+  JS.transition(...) |> JSX.emit("close")
+  
+  # New JS chain with options
+  JSX.emit("close", values: %{reason: "cancelled"})
+  
+  # New JS chain without options
+  JSX.emit("close")
+  ```
   """
+  
   defmacro emit(%Phoenix.LiveView.JS{} = js_ast, event_name_suffix_ast, opts_list_ast) do
     quote location: :keep do
       assigns_var = var!(assigns)
@@ -53,10 +82,6 @@ defmodule Livex.JSX do
     end
   end
 
-  @doc """
-  Generates a JS command to emit a client-side event, chained on an existing JS struct, without options.
-  Example: `Livex.JS.emit(my_js_chain, "event_suffix")`
-  """
   defmacro emit(%Phoenix.LiveView.JS{} = js_ast, event_name_suffix_ast) do
     quote location: :keep do
       assigns_var = var!(assigns)
@@ -74,10 +99,6 @@ defmodule Livex.JSX do
     end
   end
 
-  @doc """
-  Generates a JS command to emit a client-side event with options.
-  Example: `Livex.JS.emit("event_suffix", values: %{...})`
-  """
   defmacro emit(event_name_suffix_ast, opts_list_ast) do
     quote location: :keep do
       assigns_var = var!(assigns)
@@ -95,10 +116,6 @@ defmodule Livex.JSX do
     end
   end
 
-  @doc """
-  Generates a JS command to emit a client-side event (new JS chain) without options.
-  Example: `Livex.JS.emit("event_suffix")`
-  """
   defmacro emit(event_name_suffix_ast) do
     quote location: :keep do
       assigns_var = var!(assigns)
