@@ -4,9 +4,10 @@
   inputs: ["*.{heex,ex,exs}", "{config,lib,test}/**/*.{heex,ex,exs}"],
   export: [
     locals_without_parens: [
-      attribute: 2,
-      has_one: 2,
-      has_many: 2
+      prop: 2,
+      prop: 3,
+      state: 2,
+      state: 3
     ]
   ]
 ]
