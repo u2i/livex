@@ -5,7 +5,7 @@ defmodule Livex.RenderedManipulator do
 
   alias Phoenix.LiveView.Rendered
   alias Phoenix.HTML
-  alias Livex.Schema.{Data}
+  alias Livex.Schema.{State}
 
   def wrap_in_div(%Rendered{} = rendered, module, assigns) do
     manipulate_rendered(
@@ -127,7 +127,7 @@ defmodule Livex.RenderedManipulator do
 
   def attribute_snippets(attributes, assigns) do
     attributes
-    |> Enum.filter(&match?(%Data{}, &1))
+    |> Enum.filter(&match?(%State{}, &1))
     |> Enum.reduce([], fn attribute, acc ->
       case Map.fetch(assigns, attribute.name) do
         {:ok, nil} ->

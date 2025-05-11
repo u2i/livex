@@ -2,7 +2,7 @@ defmodule Livex.Schema.LivexComponentDsl do
   @moduledoc false
 
   alias Spark.Dsl.{Entity, Section}
-  alias Livex.Schema.{Attr, Data}
+  alias Livex.Schema.{Attr, State}
 
   # —————————————————————————————————————————
   # 2) Entity definitions
@@ -18,10 +18,10 @@ defmodule Livex.Schema.LivexComponentDsl do
     describe: "Define a primitive field"
   }
 
-  @data_entity %Entity{
-    name: :data,
+  @state_entity %Entity{
+    name: :state,
     args: [:name, :type],
-    target: Data,
+    target: State,
     schema: [
       name: [type: :atom, doc: "Field name (atom)"],
       type: [type: :atom, doc: "Ecto field type (e.g. :string, :integar or custom"],
@@ -37,7 +37,7 @@ defmodule Livex.Schema.LivexComponentDsl do
   @properties_section %Section{
     name: :attributes,
     schema: [],
-    entities: [@attr_entity, @data_entity],
+    entities: [@attr_entity, @state_entity],
     describe: "Group primitive field definitions",
     top_level?: true
   }

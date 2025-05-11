@@ -1,4 +1,4 @@
-defmodule Livex.Schema.Data do
+defmodule Livex.Schema.State do
   @moduledoc false
   defstruct [:name, :type, :url?, :one_of]
 end
