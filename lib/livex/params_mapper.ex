@@ -137,7 +137,9 @@ defmodule Livex.ParamsMapper do
   Parse a string into a boolean value.
   """
   def parse_bool(val) do
-    case String.downcase(val) do
+    case val do
+      true -> true
+      false -> false
       "true" -> true
       "false" -> false
       "1" -> true
