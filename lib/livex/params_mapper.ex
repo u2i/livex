@@ -1,5 +1,10 @@
 defmodule Livex.ParamsMapper do
-  @moduledoc false
+  @moduledoc """
+  Handles parameter mapping and type casting for Livex components and views.
+
+  This module is responsible for converting parameters between different formats
+  and ensuring proper type casting based on component attribute definitions.
+  """
 
   alias Spark.Dsl.Extension
 
@@ -37,24 +42,28 @@ defmodule Livex.ParamsMapper do
 
   # Fetch raw data then cast based on type
   defp fetch_and_cast(name, type, params) do
-    raw = get_in(params, [to_string(name)])
+    if Map.has_key?(params, to_string(name)) do
+      raw = params[to_string(name)]
 
-    value =
-      cond do
-        is_atom(type) and Code.ensure_loaded?(type) and
-            function_exported?(type, :__info__, 1) ->
-          type
-          |> Extension.get_entities([:attributes])
-          |> case do
-            [] -> cast(raw, type)
-            props -> build_props(raw || %{}, props)
-          end
+      value =
+        cond do
+          is_atom(type) and Code.ensure_loaded?(type) and
+              function_exported?(type, :__info__, 1) ->
+            type
+            |> Extension.get_entities([:attributes])
+            |> case do
+              [] -> cast(raw, type)
+              props -> build_props(raw || %{}, props)
+            end
 
-        true ->
-          cast(raw, type)
-      end
+          true ->
+            cast(raw, type)
+        end
 
-    wrap(value)
+      wrap(value)
+    else
+      false
+    end
   end
 
   # Build nested props map for module-types
@@ -74,12 +83,12 @@ defmodule Livex.ParamsMapper do
   end
 
   # Wrap into ok/error for pattern matching
-  defp wrap(nil), do: {:error, :no_value}
+  defp wrap(nil), do: {:ok, nil}
   defp wrap(%{} = m), do: {:ok, m}
   defp wrap(val), do: {:ok, val}
 
   defp empty?(%{} = m), do: map_size(m) == 0
-  defp empty?(nil), do: true
+  defp empty?(nil), do: false
   defp empty?(_), do: false
 
   # Fallback casting rules
@@ -110,11 +119,7 @@ defmodule Livex.ParamsMapper do
   Safely convert a string to an existing atom.
   """
   def safe_atom(val) do
-    try do
-      String.to_existing_atom(val)
-    rescue
-      _ -> nil
-    end
+    String.to_existing_atom(val)
   end
 
   @doc """

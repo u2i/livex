@@ -1,10 +1,24 @@
 defmodule Livex.JSX do
   @moduledoc """
   Provides macros for emitting client-side events from LiveViews/LiveComponents.
-  The client-side event name to be dispatched is looked up from assigns
+
+  This module allows components to emit events that can be handled by parent components
+  or views. The client-side event name to be dispatched is looked up from assigns
   using a key derived from the provided event suffix (e.g., assigns[:"phx-suffix"]).
-  The target is also resolved from assigns or options within the macro.
-  To use the `emit` macro, call it as `Livex.JS.emit(...)`.
+
+  ## Examples
+
+  ```elixir
+  # In a component template
+  <button phx-click={JSX.emit(:close)}>Cancel</button>
+
+  # In the parent component/view
+  <.live_component module={MyApp.ModalComponent} id="my-modal" phx-close={JS.hide(to: "#my-modal")}>
+    Modal content here
+  </.live_component>
+  ```
+
+  To use the `emit` macro, call it as `Livex.JSX.emit(...)`.
   """
 
   defmacro __using__(_opts \\ []) do
@@ -174,9 +188,25 @@ defmodule Livex.JSX do
 
   def get_target_from_assigns(_assigns), do: nil
 
+  @doc """
+  Creates a JS command to update component data from the client.
+
+  This macro allows updating component state directly from client-side events.
+
+  ## Parameters
+
+  * `key` - The key to update in the component's state
+  * `val` - The value to assign
+
+  ## Examples
+
+  ```elixir
+  <button phx-click={JSX.assign_data(:is_expanded, true)}>Expand</button>
+  ```
+  """
   defmacro assign_data(key, val) do
     quote do
-      Livex.JSX.assign_data(
+      Livex.JSX.do_assign_data(
         var!(assigns)[:myself],
         unquote(key),
         unquote(val)
@@ -184,10 +214,41 @@ defmodule Livex.JSX do
     end
   end
 
-  def assign_data(target, key, value) do
+  defmacro assign_data(opts) when is_list(opts) do
+    quote do
+      Livex.JSX.do_assign_data(
+        var!(assigns)[:myself],
+        unquote(opts)
+      )
+    end
+  end
+
+  defmacro assign_data() do
+    quote do
+      Livex.JSX.do_assign_data(var!(assigns)[:myself])
+    end
+  end
+
+  @doc false
+  def do_assign_data(target, key, value) do
     JS.push("__component_action",
       target: target,
       value: %{key => value}
     )
+  end
+
+  @doc false
+  def do_assign_data(target, opts) when is_list(opts) do
+    value_map = Enum.into(opts, %{})
+
+    JS.push("__component_action",
+      target: target,
+      value: value_map
+    )
+  end
+
+  @doc false
+  def do_assign_data(target) do
+    JS.push("__component_action", target: target)
   end
 end

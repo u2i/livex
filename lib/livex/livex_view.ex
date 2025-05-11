@@ -1,5 +1,41 @@
 defmodule Livex.LivexView do
+  @moduledoc """
+  A module that enhances Phoenix LiveView with automatic state management and lifecycle improvements.
+
+  ## Features
+
+  * Automatic state management with URL persistence
+  * Simplified component lifecycle with `pre_render` function
+  * Improved event handling with automatic state updates
+  * Declarative state dependencies with `assign_new/4`
+
+  ## Usage
+
+  ```elixir
+  defmodule MyApp.SomeView do
+    use Livex.LivexView
+    
+    state :location_id, :uuid, url?: true
+    state :name_filter, :string, url?: true
+    state :show_dialog, :boolean
+    
+    def pre_render(socket) do
+      {:noreply, socket}
+    end
+    
+    def render(assigns) do
+      ~H\"\"\"
+      <div>
+        <!-- Your template here -->
+      </div>
+      \"\"\"
+    end
+  end
+  ```
+  """
+
   defmodule Schema do
+    @moduledoc false
     use Spark.Dsl,
       default_extensions: [
         extensions: [Livex.Schema.LivexViewDsl]

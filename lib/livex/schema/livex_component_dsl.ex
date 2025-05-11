@@ -25,7 +25,8 @@ defmodule Livex.Schema.LivexComponentDsl do
     schema: [
       name: [type: :atom, doc: "Field name (atom)"],
       type: [type: :atom, doc: "Ecto field type (e.g. :string, :integar or custom"],
-      url?: [type: :boolean, default: false, doc: "Include in url"]
+      url?: [type: :boolean, default: false, doc: "Include in url"],
+      one_of: [type: {:list, :atom}, doc: "Must be one of these values"]
     ],
     describe: "Define a primitive field"
   }

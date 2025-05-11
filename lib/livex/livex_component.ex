@@ -1,5 +1,47 @@
 defmodule Livex.LivexComponent do
+  @moduledoc """
+  A module that enhances Phoenix LiveComponent with automatic state management and lifecycle improvements.
+
+  ## Features
+
+  * Automatic state management with optional URL persistence
+  * Simplified component lifecycle with `pre_render` function
+  * Improved event handling with automatic state updates
+  * Custom event emission with `push_emit`
+  * Declarative state dependencies with `assign_new/4`
+
+  ## Usage
+
+  ```elixir
+  defmodule MyApp.FormComponent do
+    use Livex.LivexComponent
+    
+    state :is_expanded, :boolean
+    state :selected_tab, :string, url?: true
+    
+    def pre_render(socket) do
+      {:noreply, socket}
+    end
+    
+    def render(assigns) do
+      ~H\"\"\"
+      <div>
+        <!-- Your component template here -->
+        <button phx-click={JSX.emit(:close)}>Cancel</button>
+      </div>
+      \"\"\"
+    end
+    
+    # Handle the close event
+    def handle_event("close", _, socket) do
+      {:noreply, socket |> push_emit(:close)}
+    end
+  end
+  ```
+  """
+
   defmodule Schema do
+    @moduledoc false
     use Spark.Dsl,
       default_extensions: [extensions: [Livex.Schema.LivexComponentDsl]]
   end
@@ -137,7 +179,10 @@ defmodule Livex.LivexComponent do
   defp assign_all_or_call_original(socket, assigns, _) do
     {:ok,
      assigns
-     |> Enum.filter(&(socket.assigns[&1 |> elem(0)] != &1 |> elem(1)))
+     |> Enum.filter(
+       &(!Map.has_key?(socket.assigns, &1 |> elem(0)) ||
+           socket.assigns[&1 |> elem(0)] != &1 |> elem(1))
+     )
      |> Map.new()
      |> then(&Phoenix.Component.assign(socket, &1))}
   end

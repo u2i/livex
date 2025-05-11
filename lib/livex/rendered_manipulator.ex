@@ -76,7 +76,20 @@ defmodule Livex.RenderedManipulator do
     [new_first] ++ Enum.reverse(rest_reverse) ++ [new_last]
   end
 
-  @doc false
+  @doc """
+  Formats an attribute for inclusion in an HTML tag.
+
+  ## Parameters
+
+  * `name` - The attribute name
+  * `value` - The attribute value
+  * `prefix` - Optional prefix for the attribute name
+  * `type` - Optional type for the attribute name
+
+  ## Returns
+
+  * A formatted attribute string
+  """
   def format_attribute(name, value, prefix \\ nil, type \\ nil) do
     attr_name =
       [prefix, type, name]
