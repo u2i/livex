@@ -9,6 +9,7 @@ defmodule Livex.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
+      aliases: aliases(),
       description: description(),
       package: package()
     ]
@@ -33,6 +34,7 @@ defmodule Livex.MixProject do
       # Test dependencies
       {:mimic, "~> 1.11", only: :test},
       {:floki, ">= 0.30.0", only: :test},
+      {:esbuild, "~> 0.2", only: :dev},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false}
     ]
   end
@@ -47,7 +49,16 @@ defmodule Livex.MixProject do
     [
       maintainers: ["Your Name"],
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/yourusername/livex"}
+      links: %{"GitHub" => "https://github.com/yourusername/livex"},
+      files:
+        ~w(lib priv assets/js assets/vendor assets/package.json priv/static/js .formatter.exs mix.exs README.md LICENSE)
+    ]
+  end
+
+  defp aliases do
+    [
+      "assets.build": ["esbuild module", "esbuild cdn", "esbuild cdn_min", "esbuild main"],
+      "assets.watch": ["esbuild module --watch"]
     ]
   end
 end

@@ -146,6 +146,8 @@ defmodule Livex.LivexView do
     socket
     |> Component.assign(:uri, uri)
     |> Component.assign(ParamsMapper.map_params(module, params))
+    # TODO: only reset changed values modified by map_params (probably leave it unchanged)
+    |> then(fn socket -> put_in(socket.assigns.__changed__, %{}) end)
     |> then(&{:cont, &1})
   end
 

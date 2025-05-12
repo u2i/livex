@@ -194,7 +194,7 @@ end
 Then in the parent component:
 
 ```elixir
-<.live_component module={MyApp.ModalComponent} id="my-modal" 
+<.live_component module={MyApp.ModalComponent} id="my-modal"
                  phx-close={JS.hide(to: "#my-modal")}>
   Modal content here
 </.live_component>
@@ -207,6 +207,8 @@ implementation in LiveView could handle propagating events from functional
 components through any number of live components.
 
 ### Enable PubSub for Components
+
+**This is not implemented yet**
 
 LiveView has a great tool in PubSub that can solve a lot of the more complicated
 state management and communication problems. Need to have two sibling components
@@ -254,3 +256,114 @@ issues or submit pull requests with ideas or improvements.
 
 This project is licensed under the MIT License - see the LICENSE file for
 details.
+
+## JavaScript Library
+
+Livex includes a JavaScript library that extends Phoenix LiveView with URL management capabilities.
+
+### Installation
+
+1. Add livex to your dependencies in `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:livex, "~> 0.1.0"}
+  ]
+end
+```
+
+2. Ensure your esbuild configuration in `config/config.exs` includes the NODE_PATH to deps:
+
+```elixir
+config :esbuild,
+  version: "0.17.11",
+  your_app: [
+    args: ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+  ]
+```
+
+3. Modify your `app.js` file to include the LiveX URL management:
+
+```javascript
+// Your existing imports
+import "phoenix_html";
+import { Socket } from "phoenix";
+import { LiveSocket } from "phoenix_live_view";
+import topbar from "../vendor/topbar";
+
+// Import the LiveX URL management from the livex package
+import { enhanceLiveSocket } from "livex";
+
+// Your existing LiveSocket setup
+const csrfToken = document
+  .querySelector("meta[name='csrf-token']")
+  .getAttribute("content");
+let liveSocket = new LiveSocket("/live", Socket, {
+  params: { _csrf_token: csrfToken },
+});
+
+// Enhance the LiveSocket with URL management
+liveSocket = enhanceLiveSocket(liveSocket);
+
+// Your existing code
+topbar.config({ barColors: { 0: "#29d" }, shadowColor: "rgba(0, 0, 0, .3)" });
+window.addEventListener("phx:page-loading-start", (info) => topbar.show());
+window.addEventListener("phx:page-loading-stop", (info) => topbar.hide());
+
+// Connect if there are any LiveViews on the page
+liveSocket.connect();
+
+// Expose liveSocket on window for web console debug logs and latency simulation
+window.liveSocket = liveSocket;
+```
+
+### URL Management
+
+LiveX enhances LiveView with URL management based on attributes in your HTML:
+
+1. Add a `lv-page-params` element with a `lv-route` attribute:
+
+```html
+<div id="lv-page-params" lv-route="/users/:id" lv-url-id="123"></div>
+```
+
+2. Add URL parameters with `lv-url-*` attributes:
+
+```html
+<div
+  id="lv-page-params"
+  lv-route="/users/:id"
+  lv-url-id="123"
+  lv-url-tab="profile"
+></div>
+```
+
+3. Add non-URL data with `lv-data-*` attributes:
+
+```html
+<div
+  id="lv-page-params"
+  lv-route="/users/:id"
+  lv-url-id="123"
+  lv-data-expanded="true"
+></div>
+```
+
+4. Component-level attributes are also supported:
+
+```html
+<div id="user-form" data-phx-component="1" lv-url-mode="edit"></div>
+```
+
+### API
+
+#### `enhanceLiveSocket(liveSocket)`
+
+Enhances a LiveSocket instance with URL management capabilities.
+
+#### `liveSocket.pushPatchUrl(href, linkState = {})`
+
+Helper method to push a new URL to the history without a full page reload.

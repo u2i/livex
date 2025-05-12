@@ -157,26 +157,32 @@ defmodule Livex.LivexComponent do
   end
 
   def override_update(assigns, socket, current_params, module, super) do
-    {:ok, socket} =
-      socket
-      |> maybe_map_params(module, current_params, assigns)
-      |> assign_all_or_call_original(assigns, super)
+    socket =
+      if current_params do
+        # we only have params when we're rehydrating, so we need to reset the changed status
+        socket
+        |> map_params(module, current_params, assigns)
+        |> assign_all_from_parent_or_call_original(assigns, super)
+        |> then(fn {:ok, socket} -> put_in(socket.assigns.__changed__, %{}) end)
+      else
+        # otherwise we should proceed 
+        {:ok, socket} = assign_all_from_parent_or_call_original(socket, assigns, super)
+        socket
+      end
 
     {:noreply, socket} = module.pre_render(socket)
     {:ok, socket}
   end
 
-  defp maybe_map_params(socket, _, nil, _), do: socket
-
-  defp maybe_map_params(socket, module, current_params, assigns) do
+  defp map_params(socket, module, current_params, assigns) do
     ParamsMapper.map_params(module, current_params, "_#{assigns.id}")
     |> then(&Component.assign(socket, &1))
   end
 
-  defp assign_all_or_call_original(socket, assigns, super) when not is_nil(super),
+  defp assign_all_from_parent_or_call_original(socket, assigns, super) when not is_nil(super),
     do: super.(assigns, socket)
 
-  defp assign_all_or_call_original(socket, assigns, _) do
+  defp assign_all_from_parent_or_call_original(socket, assigns, _) do
     {:ok,
      assigns
      |> Enum.filter(
