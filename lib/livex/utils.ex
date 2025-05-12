@@ -101,7 +101,7 @@ defmodule Livex.Utils do
   def stream_new(socket, key, deps, fun) do
     unless Map.has_key?(socket.assigns, :streams) &&
              Map.has_key?(socket.assigns.streams, :__changed__) &&
-             MapSet.disjoint?(socket.assigns.streams.__changed__, MapSet.new(deps)) do
+             !MapSet.disjoint?(socket.assigns.streams.__changed__, MapSet.new(deps)) do
       Phoenix.LiveView.stream(socket, key, fun.(socket.assigns), reset: true)
     else
       socket
