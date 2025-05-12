@@ -257,13 +257,11 @@ issues or submit pull requests with ideas or improvements.
 This project is licensed under the MIT License - see the LICENSE file for
 details.
 
-## JavaScript Library
+## Setup Instructions
 
-Livex includes a JavaScript library that extends Phoenix LiveView with URL management capabilities.
+### 1. Add Livex to your dependencies
 
-### Installation
-
-1. Add livex to your dependencies in `mix.exs`:
+Add livex to your dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -273,7 +271,37 @@ def deps do
 end
 ```
 
-2. Ensure your esbuild configuration in `config/config.exs` includes the NODE_PATH to deps:
+### 2. Configure your web module
+
+Update your web module (typically `lib/your_app_web.ex`) to include Livex view and component definitions:
+
+```elixir
+# Add these two new functions to your web module:
+
+def livex_view do
+  quote do
+    use Livex.LivexView
+    use Livex.JSX
+
+    # Include your existing HTML helpers
+    unquote(html_helpers())
+  end
+end
+
+def livex_component do
+  quote do
+    use Livex.LivexComponent
+    use Livex.JSX
+
+    # Include your existing HTML helpers
+    unquote(html_helpers())
+  end
+end
+```
+
+### 3. JavaScript Integration
+
+Ensure your esbuild configuration in `config/config.exs` includes the NODE_PATH to deps:
 
 ```elixir
 config :esbuild,
@@ -285,85 +313,40 @@ config :esbuild,
   ]
 ```
 
-3. Modify your `app.js` file to include the LiveX URL management:
+Add these two lines to your `assets/js/app.js` file:
 
 ```javascript
-// Your existing imports
-import "phoenix_html";
-import { Socket } from "phoenix";
-import { LiveSocket } from "phoenix_live_view";
-import topbar from "../vendor/topbar";
-
-// Import the LiveX URL management from the livex package
+// Add this import near your other imports (after LiveSocket import)
 import { enhanceLiveSocket } from "livex";
 
-// Your existing LiveSocket setup
-const csrfToken = document
-  .querySelector("meta[name='csrf-token']")
-  .getAttribute("content");
-let liveSocket = new LiveSocket("/live", Socket, {
-  params: { _csrf_token: csrfToken },
-});
-
-// Enhance the LiveSocket with URL management
+// Add this line after creating your LiveSocket instance but before connecting
 liveSocket = enhanceLiveSocket(liveSocket);
-
-// Your existing code
-topbar.config({ barColors: { 0: "#29d" }, shadowColor: "rgba(0, 0, 0, .3)" });
-window.addEventListener("phx:page-loading-start", (info) => topbar.show());
-window.addEventListener("phx:page-loading-stop", (info) => topbar.hide());
-
-// Connect if there are any LiveViews on the page
-liveSocket.connect();
-
-// Expose liveSocket on window for web console debug logs and latency simulation
-window.liveSocket = liveSocket;
 ```
 
-### URL Management
+### 4. Using Livex in your application
 
-LiveX enhances LiveView with URL management based on attributes in your HTML:
+Create LiveView modules using the new `livex_view` definition:
 
-1. Add a `lv-page-params` element with a `lv-route` attribute:
-
-```html
-<div id="lv-page-params" lv-route="/users/:id" lv-url-id="123"></div>
+```elixir
+defmodule MyAppWeb.SomeView do
+  use MyAppWeb, :livex_view
+  
+  state :counter, :integer, url?: true
+  state :show_modal, :boolean
+  
+  # Your view code...
+end
 ```
 
-2. Add URL parameters with `lv-url-*` attributes:
+Create LiveComponents using the new `livex_component` definition:
 
-```html
-<div
-  id="lv-page-params"
-  lv-route="/users/:id"
-  lv-url-id="123"
-  lv-url-tab="profile"
-></div>
+```elixir
+defmodule MyAppWeb.SomeComponent do
+  use MyAppWeb, :livex_component
+  
+  attr :title, :string, required: true
+  state :is_expanded, :boolean
+  
+  # Your component code...
+end
 ```
-
-3. Add non-URL data with `lv-data-*` attributes:
-
-```html
-<div
-  id="lv-page-params"
-  lv-route="/users/:id"
-  lv-url-id="123"
-  lv-data-expanded="true"
-></div>
-```
-
-4. Component-level attributes are also supported:
-
-```html
-<div id="user-form" data-phx-component="1" lv-url-mode="edit"></div>
-```
-
-### API
-
-#### `enhanceLiveSocket(liveSocket)`
-
-Enhances a LiveSocket instance with URL management capabilities.
-
-#### `liveSocket.pushPatchUrl(href, linkState = {})`
-
-Helper method to push a new URL to the history without a full page reload.
