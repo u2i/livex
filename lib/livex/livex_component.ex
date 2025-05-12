@@ -49,6 +49,7 @@ defmodule Livex.LivexComponent do
   defmacro __using__(_opts \\ []) do
     quote do
       use Schema
+      use Phoenix.LiveComponent, except: [def: 2, defp: 2, attr: 3]
       import Phoenix.LiveView.Helpers
 
       @impl true
