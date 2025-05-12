@@ -104,13 +104,13 @@ end
 - **Component State**: You can define a state property as a component module
   (e.g., `state :new_comment_form, MyAppWeb.Components.CommentForm`). Livex will
   then manage the attributes (attr) of this component as part of the parent's
-  state. When this state is updated (e.g., via JSX.assign_data or a direct
+  state. When this state is updated (e.g., via JSX.assign_state or a direct
   assign in an event), Livex facilitates the re-rendering of the child component
   with the new attribute values.
 - **Initial Values**: Default values are not directly supported in the state
   macro (yet). To set an initial value, use assign_new/2 within the pre_render/1
   callback without dependencies, e.g., `assign_new(socket, :my_state, fn -> 
-  initial_value end)`.
+initial_value end)`.
 
 ### Declarative Data Derivation and Lifecycle Management (pre_render, assign_new, stream_new)
 
@@ -151,7 +151,7 @@ defmodule MyAppWeb.ProductListingView do
        )
      end)}
   end
-  
+
   # ... rest of the view code
 end
 ```
@@ -292,15 +292,15 @@ This pattern is especially useful for modal forms and other complex UI elements
 that need to be controlled by a parent view. The parent can:
 
 - Initialize the component state: `assign(socket, :edit_form, %{item_id: "123", action: :edit})`
-- Reset the component: `assign(socket, :edit_form, nil)` 
+- Reset the component: `assign(socket, :edit_form, nil)`
 - Update specific attributes: `update(socket, :edit_form, &Map.put(&1, :action, :new))`
 
 All while maintaining proper type safety and state persistence according to the
 component's defined attributes.
 
-### Simplified State Updates (JSX.assign_data)
+### Simplified State Updates (JSX.assign_state)
 
-For components, Livex introduces JSX.assign_data (used within HEEx templates) as
+For components, Livex introduces JSX.assign_state (used within HEEx templates) as
 a convenient way to update its own state properties. This is analogous to the
 setter functions returned by useState in React functional components. It
 simplifies common cases of updating component state directly from template
@@ -330,13 +330,13 @@ defmodule MyAppWeb.Components.CounterButton do
       <p class={if @is_highlighted, do: "font-bold", else: ""}>
         Count: {@current_count}
       </p>
-      <button phx-click={JSX.assign_data(:current_count, @current_count + 1)}>
+      <button phx-click={JSX.assign_state(:current_count, @current_count + 1)}>
         Increment
       </button>
-      <button phx-click={JSX.assign_data(is_highlighted: !@is_highlighted)}>
+      <button phx-click={JSX.assign_state(is_highlighted: !@is_highlighted)}>
         Toggle Highlight
       </button>
-      <button phx-click={JSX.assign_data(current_count: 0, is_highlighted: false)}>
+      <button phx-click={JSX.assign_state(current_count: 0, is_highlighted: false)}>
         Reset
       </button>
     </div>
@@ -347,7 +347,7 @@ end
 
 Clicking these buttons will directly update the :current_count and/or
 :is_highlighted state of the CounterButton component instance, triggering a
-re-render. JSX.assign_data can update one or multiple state fields. For more
+re-render. JSX.assign_state can update one or multiple state fields. For more
 complex state transitions or side effects, you would still use handle_event.
 
 Example of conditional state updates:
@@ -357,12 +357,12 @@ Example of conditional state updates:
   type="button"
   phx-click={
     if @is_expanded do
-      JSX.assign_data(
+      JSX.assign_state(
         is_expanded: false,
         pending_value: @initial_value
       )
     else
-      JSX.assign_data(is_expanded: true)
+      JSX.assign_state(is_expanded: true)
     end
   }
 >
@@ -409,10 +409,10 @@ defmodule MyAppWeb.Components.EditableField do
       <%= if @is_editing do %>
         <input type="text" phx-target={@myself} phx-change="update_value" value={@current_value} />
         <button phx-target={@myself} phx-click="save_changes">Save</button>
-        <button phx-target={@myself} phx-click={JSX.assign_data(is_editing: false)}>Cancel</button>
+        <button phx-target={@myself} phx-click={JSX.assign_state(is_editing: false)}>Cancel</button>
       <% else %>
         <span><%= @current_value %></span>
-        <button phx-target={@myself} phx-click={JSX.assign_data(is_editing: true)}>Edit</button>
+        <button phx-target={@myself} phx-click={JSX.assign_state(is_editing: true)}>Edit</button>
       <% end %>
     </div>
     """
@@ -590,7 +590,7 @@ defmodule MyAppWeb do
 
       # Livex specific uses
       use Livex.LivexView
-      use Livex.JSX # For JSX.emit, JSX.assign_data etc.
+      use Livex.JSX # For JSX.emit, JSX.assign_state etc.
     end
   end
 
@@ -600,7 +600,7 @@ defmodule MyAppWeb do
 
       # Livex specific uses
       use Livex.LivexComponent
-      use Livex.JSX # For JSX.emit, JSX.assign_data etc.
+      use Livex.JSX # For JSX.emit, JSX.assign_state etc.
     end
   end
 

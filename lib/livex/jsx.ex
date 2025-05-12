@@ -3,9 +3,9 @@ defmodule Livex.JSX do
   Provides macros for client-side state updates and event emission in Livex components.
 
   This module contains two main sets of functionality:
-  
+
   1. **JSX.emit** - Emit events from components to parent views/components
-  2. **JSX.assign_data** - Update component state directly from templates
+  2. **JSX.assign_state** - Update component state directly from templates
 
   ## Event Emission (JSX.emit)
 
@@ -27,47 +27,47 @@ defmodule Livex.JSX do
     phx-save="handle_modal_save">
     Modal content here
   </.live_component>
-  
+
   # In the parent's handle_event
   def handle_event("handle_modal_close", _, socket) do
     {:noreply, assign(socket, :modal_open, false)}
   end
-  
+
   def handle_event("handle_modal_save", %{"id" => id, "data" => data}, socket) do
     # Process the saved data
     {:noreply, socket}
   end
   ```
 
-  ## State Updates (JSX.assign_data)
+  ## State Updates (JSX.assign_state)
 
-  The `assign_data` macros allow updating component state directly from templates,
+  The `assign_state` macros allow updating component state directly from templates,
   without needing to write handle_event callbacks for simple state changes.
 
   ### Examples
 
   ```elixir
   # Update a single value
-  <button phx-click={JSX.assign_data(:is_expanded, true)}>Expand</button>
-  
+  <button phx-click={JSX.assign_state(:is_expanded, true)}>Expand</button>
+
   # Update multiple values at once
-  <button phx-click={JSX.assign_data(is_expanded: false, selected_tab: "details")}>
+  <button phx-click={JSX.assign_state(is_expanded: false, selected_tab: "details")}>
     Close
   </button>
-  
+
   # Conditional updates
   <button phx-click={
     if @is_expanded do
-      JSX.assign_data(is_expanded: false, pending_value: @initial_value)
+      JSX.assign_state(is_expanded: false, pending_value: @initial_value)
     else
-      JSX.assign_data(is_expanded: true)
+      JSX.assign_state(is_expanded: true)
     end
   }>
     {if @is_expanded, do: "Close", else: "Expand"}
   </button>
-  
+
   # Force a component refresh without changing state
-  <button phx-click={JSX.assign_data()}>Refresh Component</button>
+  <button phx-click={JSX.assign_state()}>Refresh Component</button>
   ```
 
   ## Usage
@@ -243,14 +243,14 @@ defmodule Livex.JSX do
   ## Examples
 
   ```elixir
-  <button phx-click={JSX.assign_data(is_expanded: true, selected_tab: "details")}>
+  <button phx-click={JSX.assign_state(is_expanded: true, selected_tab: "details")}>
     Expand Details
   </button>
   ```
   """
-  defmacro assign_data(opts) when is_list(opts) do
+  defmacro assign_state(opts) when is_list(opts) do
     quote do
-      Livex.JSX.do_assign_data(
+      Livex.JSX.do_assign_state(
         var!(assigns)[:myself],
         unquote(opts)
       )
@@ -260,7 +260,7 @@ defmodule Livex.JSX do
   @doc """
   Creates a JS command to update a single component data value from the client.
 
-  See `assign_data/1` for updating multiple values at once.
+  See `assign_state/1` for updating multiple values at once.
 
   ## Parameters
 
@@ -270,12 +270,12 @@ defmodule Livex.JSX do
   ## Examples
 
   ```elixir
-  <button phx-click={JSX.assign_data(:is_expanded, true)}>Expand</button>
+  <button phx-click={JSX.assign_state(:is_expanded, true)}>Expand</button>
   ```
   """
-  defmacro assign_data(key, val) do
+  defmacro assign_state(key, val) do
     quote do
-      Livex.JSX.do_assign_data(
+      Livex.JSX.do_assign_state(
         var!(assigns)[:myself],
         unquote(key),
         unquote(val)
@@ -291,17 +291,17 @@ defmodule Livex.JSX do
   ## Examples
 
   ```elixir
-  <button phx-click={JSX.assign_data()}>Refresh Component</button>
+  <button phx-click={JSX.assign_state()}>Refresh Component</button>
   ```
   """
-  defmacro assign_data() do
+  defmacro assign_state() do
     quote do
-      Livex.JSX.do_assign_data(var!(assigns)[:myself])
+      Livex.JSX.do_assign_state(var!(assigns)[:myself])
     end
   end
 
   @doc false
-  def do_assign_data(target, key, value) do
+  def do_assign_state(target, key, value) do
     JS.push("__component_action",
       target: target,
       value: %{key => value}
@@ -309,7 +309,7 @@ defmodule Livex.JSX do
   end
 
   @doc false
-  def do_assign_data(target, opts) when is_list(opts) do
+  def do_assign_state(target, opts) when is_list(opts) do
     # Convert keyword list to map for multiple key-value pairs
     value_map = Enum.into(opts, %{})
 
@@ -320,7 +320,7 @@ defmodule Livex.JSX do
   end
 
   @doc false
-  def do_assign_data(target) do
+  def do_assign_state(target) do
     JS.push("__component_action", target: target)
   end
 end

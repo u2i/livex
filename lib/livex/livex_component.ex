@@ -8,7 +8,7 @@ defmodule Livex.LivexComponent do
   * **Component Properties (attr)**: Define expected properties passed from parent
   * **Simplified Lifecycle**: Consolidate data derivation logic in the `pre_render` callback
   * **Dependency-Aware Assignments**: Use `assign_new/4` to compute values only when dependencies change
-  * **Simplified State Updates**: Use `JSX.assign_data` for direct state updates from templates
+  * **Simplified State Updates**: Use `JSX.assign_state` for direct state updates from templates
   * **Component Events**: Emit events to parent views with `push_emit` or `JSX.emit`
   * **PubSub Integration**: Subscribe to topics with dependency-aware `assign_topic`
 
@@ -61,23 +61,23 @@ defmodule Livex.LivexComponent do
 
   ## Simplified State Updates
 
-  Livex introduces `JSX.assign_data` for updating component state directly from templates:
+  Livex introduces `JSX.assign_state` for updating component state directly from templates:
 
   ```elixir
   # Update a single value
-  <button phx-click={JSX.assign_data(:is_expanded, true)}>Expand</button>
-  
+  <button phx-click={JSX.assign_state(:is_expanded, true)}>Expand</button>
+
   # Update multiple values
-  <button phx-click={JSX.assign_data(is_expanded: false, selected_tab: "details")}>
+  <button phx-click={JSX.assign_state(is_expanded: false, selected_tab: "details")}>
     Close
   </button>
-  
+
   # Conditional updates
   <button phx-click={
     if @is_expanded do
-      JSX.assign_data(is_expanded: false, pending_value: @initial_value)
+      JSX.assign_state(is_expanded: false, pending_value: @initial_value)
     else
-      JSX.assign_data(is_expanded: true)
+      JSX.assign_state(is_expanded: true)
     end
   }>
     {if @is_expanded, do: "Close", else: "Expand"}
@@ -117,7 +117,7 @@ defmodule Livex.LivexComponent do
     id="my-form"
     phx-saved="handle_form_saved"
   />
-  
+
   # In the parent's handle_event
   def handle_event("handle_form_saved", %{"id" => id}, socket) do
     # Handle the saved event
@@ -138,7 +138,7 @@ defmodule Livex.LivexComponent do
        "document_updates:\#{assigns.document_id}"
      end)}
   end
-  
+
   # Handle PubSub messages
   def handle_info({:doc_updates, %{message: msg}}, socket) do
     {:noreply, assign(socket, :status_message, msg)}
