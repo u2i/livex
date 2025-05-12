@@ -4,31 +4,132 @@ defmodule Livex.LivexView do
 
   ## Features
 
-  * Automatic state management with URL persistence
-  * Simplified component lifecycle with `pre_render` function
-  * Improved event handling with automatic state updates
-  * Declarative state dependencies with `assign_new/4`
+  * **Declarative State Definition**: Define state properties with type safety and URL persistence options
+  * **Automatic URL State Management**: State marked with `url?: true` is automatically persisted to the URL
+  * **Simplified Lifecycle**: Consolidate data derivation logic in the `pre_render` callback
+  * **Dependency-Aware Assignments**: Use `assign_new/4` to compute values only when dependencies change
+  * **Reactive Data Streams**: Use `stream_new/4` to automatically update streams when dependencies change
+  * **Component State Management**: Define component modules as state types for parent-controlled components
 
-  ## Usage
+  ## State Management
+
+  Livex allows you to declaratively define state properties for your LiveView:
 
   ```elixir
-  defmodule MyApp.SomeView do
+  # State stored in URL, survives refreshes, typed as :integer
+  state :page_number, :integer, url?: true
+  
+  # State stored in URL, survives refreshes, typed as :string
+  state :category_filter, :string, url?: true
+  
+  # Client-side state, survives reconnects but not refreshes, typed as :boolean
+  state :show_advanced_search, :boolean
+  
+  # Component state type - parent can control this component's attributes
+  state :edit_form, MyApp.Components.EditForm
+  ```
+
+  * `url?: true` - State is stored in the URL query string, making it bookmarkable and persistent across page refreshes
+  * `url?: false` (or omitted) - State is stored only in client-side LiveView state, surviving reconnects but not refreshes
+  * **Type System** - Livex handles casting state from URL (string) or client-side representation to its defined Elixir type
+  * **Component State** - When a component module is used as a type, the parent can control that component's attributes
+
+  ## Lifecycle Management
+
+  Livex simplifies the LiveView lifecycle by consolidating data derivation and initial assignment logic 
+  into a `pre_render/1` callback. This largely replaces both `mount/3` and `handle_params/3`, providing 
+  a single place to handle state initialization and data derivation.
+
+  The typical flow becomes: render -> event -> reducer (handle_event, handle_info, handle_async) -> pre_render -> render.
+
+  ```elixir
+  def pre_render(socket) do
+    {:noreply,
+     socket
+     |> assign_new(:page_title, fn -> "Product Catalog" end)
+     |> assign_new(:selected_category, fn -> "all" end)
+     |> assign_new(:products, [:selected_category], fn assigns ->
+       # This function only runs if selected_category changes
+       Products.list_by_category(assigns.selected_category)
+     end)}
+  end
+  ```
+
+  ## Dependency-Aware Assignments
+
+  The `assign_new/4` function extends Phoenix.Component.assign_new/3 with dependency tracking:
+
+  ```elixir
+  # Runs only when user_id changes
+  assign_new(socket, :profile, [:user_id], fn assigns ->
+    Accounts.get_user_profile(assigns.user_id)
+  end)
+  
+  # Initial assignment (no dependencies)
+  assign_new(socket, :is_admin_view, fn -> false end)
+  ```
+
+  ## Reactive Data Streams
+
+  The `stream_new/4` function enhances LiveView's stream/4 with dependency tracking:
+
+  ```elixir
+  # Stream resets and repopulates when filter_category or filter_price_range changes
+  stream_new(socket, :products, [:filter_category, :filter_price_range], fn assigns ->
+    filter_products(
+      Products.list_all(),
+      assigns.filter_category,
+      assigns.filter_price_range
+    )
+  end)
+  ```
+
+  ## Usage Example
+
+  ```elixir
+  defmodule MyApp.ProductListingView do
     use Livex.LivexView
     
-    state :location_id, :uuid, url?: true
-    state :name_filter, :string, url?: true
-    state :show_dialog, :boolean
+    state :selected_category, :string, url?: true
+    state :sort_by, :atom, url?: true
+    state :modal_open, :boolean
+    state :edit_form, MyApp.Components.EditForm
     
     def pre_render(socket) do
-      {:noreply, socket}
+      {:noreply,
+       socket
+       |> assign_new(:modal_open, fn -> false end)
+       |> assign_new(:page_title, fn -> "Product Catalog" end)
+       |> assign_new(:selected_category, fn -> "all" end)
+       |> assign_new(:sort_by, fn -> :name_asc end)
+       |> stream_new(:products, [:selected_category, :sort_by], fn assigns ->
+         Products.list_available_products(
+           category: assigns.selected_category,
+           order_by: assigns.sort_by
+         )
+       end)}
     end
     
     def render(assigns) do
       ~H\"\"\"
       <div>
-        <!-- Your template here -->
+        <h1>{@page_title}</h1>
+        
+        <.live_component
+          :if={@edit_form}
+          module={MyApp.Components.EditForm}
+          id="edit-form"
+          {@edit_form}
+          phx-close="close_form"
+        />
+        
+        <!-- Product listing and filters -->
       </div>
       \"\"\"
+    end
+    
+    def handle_event("close_form", _, socket) do
+      {:noreply, assign(socket, :edit_form, nil)}
     end
   end
   ```

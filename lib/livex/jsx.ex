@@ -1,24 +1,79 @@
 defmodule Livex.JSX do
   @moduledoc """
-  Provides macros for emitting client-side events from LiveViews/LiveComponents.
+  Provides macros for client-side state updates and event emission in Livex components.
 
-  This module allows components to emit events that can be handled by parent components
-  or views. The client-side event name to be dispatched is looked up from assigns
-  using a key derived from the provided event suffix (e.g., assigns[:"phx-suffix"]).
+  This module contains two main sets of functionality:
+  
+  1. **JSX.emit** - Emit events from components to parent views/components
+  2. **JSX.assign_data** - Update component state directly from templates
 
-  ## Examples
+  ## Event Emission (JSX.emit)
+
+  The `emit` macros allow components to emit events that can be handled by parent components
+  or views. This creates a clean communication channel between child and parent components.
+
+  ### Examples
 
   ```elixir
   # In a component template
   <button phx-click={JSX.emit(:close)}>Cancel</button>
+  <button phx-click={JSX.emit(:save, value: %{id: @id, data: @form_data})}>Save</button>
 
   # In the parent component/view
-  <.live_component module={MyApp.ModalComponent} id="my-modal" phx-close={JS.hide(to: "#my-modal")}>
+  <.live_component 
+    module={MyApp.ModalComponent} 
+    id="my-modal" 
+    phx-close="handle_modal_close"
+    phx-save="handle_modal_save">
     Modal content here
   </.live_component>
+  
+  # In the parent's handle_event
+  def handle_event("handle_modal_close", _, socket) do
+    {:noreply, assign(socket, :modal_open, false)}
+  end
+  
+  def handle_event("handle_modal_save", %{"id" => id, "data" => data}, socket) do
+    # Process the saved data
+    {:noreply, socket}
+  end
   ```
 
-  To use the `emit` macro, call it as `Livex.JSX.emit(...)`.
+  ## State Updates (JSX.assign_data)
+
+  The `assign_data` macros allow updating component state directly from templates,
+  without needing to write handle_event callbacks for simple state changes.
+
+  ### Examples
+
+  ```elixir
+  # Update a single value
+  <button phx-click={JSX.assign_data(:is_expanded, true)}>Expand</button>
+  
+  # Update multiple values at once
+  <button phx-click={JSX.assign_data(is_expanded: false, selected_tab: "details")}>
+    Close
+  </button>
+  
+  # Conditional updates
+  <button phx-click={
+    if @is_expanded do
+      JSX.assign_data(is_expanded: false, pending_value: @initial_value)
+    else
+      JSX.assign_data(is_expanded: true)
+    end
+  }>
+    {if @is_expanded, do: "Close", else: "Expand"}
+  </button>
+  
+  # Force a component refresh without changing state
+  <button phx-click={JSX.assign_data()}>Refresh Component</button>
+  ```
+
+  ## Usage
+
+  To use these macros, add `use Livex.JSX` to your module, or they are automatically
+  imported when using `Livex.LivexView` or `Livex.LivexComponent`.
   """
 
   defmacro __using__(_opts \\ []) do
