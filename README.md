@@ -486,10 +486,12 @@ end
 
 ### Enable PubSub for Components (assign_topic)
 
+** Not Implemented Yet! **
+
 Livex aims to make it easier for components to subscribe to PubSub topics
 themselves, especially when the topic depends on the component's attrs or state.
 
-assign_topic/4 works similarly to assign_new/3, subscribing the component to a
+assign_topic/4 works similarly to assign_new/4, subscribing the component to a
 PubSub topic. The topic name can be dynamically generated based on dependencies.
 If those dependencies change, the component would be re-subscribed to the new
 topic.
@@ -617,19 +619,6 @@ end
 ```
 
 3. JavaScript Integration
-
-Ensure your esbuild configuration in config/config.exs includes the NODE_PATH to
-deps:
-
-```elixir
-config :esbuild,
-  version: "0.17.11", # or your version
-  my_app: [ # Replace my_app with your app name
-    args: ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js),
-    cd: Path.expand("../assets", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
-  ]
-```
 
 Add these two lines to your assets/js/app.js file:
 
