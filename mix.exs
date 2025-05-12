@@ -4,7 +4,7 @@ defmodule Livex.MixProject do
   def project do
     [
       app: :livex,
-      version: "0.1.0",
+      version: "0.1.1",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
