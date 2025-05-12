@@ -49,7 +49,21 @@ defmodule Livex.LivexComponent do
   defmacro __using__(_opts \\ []) do
     quote do
       use Schema
-      use Phoenix.LiveComponent, except: [def: 2, defp: 2, attr: 3]
+
+      import Phoenix.LiveView
+      @behaviour Phoenix.LiveComponent
+      @before_compile Phoenix.LiveView.Renderer
+
+      import Phoenix.Component, except: [attr: 2, attr: 3]
+
+      # import Phoenix.Component.Declarative
+      require Phoenix.Template
+
+      @doc false
+      def __live__, do: %{kind: :component, layout: false}
+
+      # use Phoenix.LiveComponent, except: [def: 2, defp: 2, attr: 2, attr: 3]
+
       import Phoenix.LiveView.Helpers
 
       @impl true
@@ -66,6 +80,7 @@ defmodule Livex.LivexComponent do
       defdelegate push_emit(socket, event, opts), to: Livex.Utils
       defdelegate push_js(socket, event), to: Livex.Utils
       defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
+      defdelegate stream_new(socket, key, deps, fun), to: Livex.Utils
 
       @before_compile unquote(__MODULE__)
     end

@@ -49,6 +49,7 @@ defmodule Livex.LivexView do
 
       defdelegate push_js(socket, event), to: Livex.Utils
       defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
+      defdelegate stream_new(socket, key, deps, fun), to: Livex.Utils
 
       on_mount {__MODULE__, :__livex}
 

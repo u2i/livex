@@ -8,7 +8,7 @@ defmodule Livex.Schema.LivexViewDsl do
   # 2) Entity definitions
   # —————————————————————————————————————————
   @attr_entity %Entity{
-    name: :prop,
+    name: :attr,
     args: [:name, :type],
     target: Attr,
     schema: [
