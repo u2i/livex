@@ -5,13 +5,17 @@ defmodule Livex.MixProject do
     [
       app: :livex,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       aliases: aliases(),
       description: description(),
-      package: package()
+      package: package(),
+      docs: [
+        main: "readme",
+        extras: ["README.md"]
+      ]
     ]
   end
 
@@ -47,11 +51,10 @@ defmodule Livex.MixProject do
 
   defp package do
     [
-      maintainers: ["Your Name"],
+      maintainers: ["Tom Clarke"],
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/yourusername/livex"},
-      files:
-        ~w(lib priv assets/js assets/vendor assets/package.json priv/static/js .formatter.exs mix.exs README.md LICENSE)
+      links: %{"GitHub" => "https://github.com/u2i/livex"},
+      files: ~w(lib assets/js package.json priv/static/ .formatter.exs mix.exs README.md LICENSE)
     ]
   end
 

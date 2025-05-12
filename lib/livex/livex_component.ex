@@ -135,7 +135,7 @@ defmodule Livex.LivexComponent do
      socket
      |> assign_new(:status_message, fn -> "Connecting..." end)
      |> assign_topic(:doc_updates, [:document_id], fn assigns ->
-       "document_updates:#{assigns.document_id}"
+       "document_updates:\#{assigns.document_id}"
      end)}
   end
   
