@@ -133,6 +133,7 @@ defmodule Livex.JSX do
         unquote(js_ast),
         resolved_target,
         resolved_client_event,
+        assigns_var.__module,
         opts
       )
     end
@@ -150,6 +151,7 @@ defmodule Livex.JSX do
         unquote(js_ast),
         resolved_target,
         resolved_client_event,
+        assigns_var.__module,
         []
       )
     end
@@ -167,6 +169,7 @@ defmodule Livex.JSX do
       Livex.JSX.build_push_op(
         resolved_target,
         resolved_client_event,
+        assigns_var.__module,
         opts
       )
     end
@@ -183,6 +186,7 @@ defmodule Livex.JSX do
       Livex.JSX.build_push_op(
         resolved_target,
         resolved_client_event,
+        assigns_var.__module,
         []
       )
     end
@@ -192,8 +196,14 @@ defmodule Livex.JSX do
   # These functions now take the pre-resolved `resolved_target`.
 
   @doc false
-  def build_push_op(%Phoenix.LiveView.JS{} = js, resolved_target, client_event_name, opts_list) do
-    value_map = Keyword.get(opts_list, :value, %{})
+  def build_push_op(
+        %Phoenix.LiveView.JS{} = js,
+        resolved_target,
+        client_event_name,
+        module,
+        opts_list
+      ) do
+    value_map = Keyword.get(opts_list, :value, %{}) |> Map.put("__module", module)
 
     JS.push(js, "#{client_event_name}",
       target: resolved_target,
@@ -202,18 +212,18 @@ defmodule Livex.JSX do
   end
 
   @doc false
-  def build_push_op(%Phoenix.LiveView.JS{} = js, resolved_target, client_event_name) do
-    build_push_op(js, resolved_target, client_event_name, [])
+  def build_push_op(%Phoenix.LiveView.JS{} = js, resolved_target, client_event_name, module) do
+    build_push_op(js, resolved_target, client_event_name, module, [])
   end
 
   @doc false
-  def build_push_op(resolved_target, client_event_name, opts_list) do
-    build_push_op(%JS{}, resolved_target, client_event_name, opts_list)
+  def build_push_op(resolved_target, client_event_name, module, opts_list) do
+    build_push_op(%JS{}, resolved_target, client_event_name, module, opts_list)
   end
 
   @doc false
-  def build_push_op(resolved_target, client_event_name) do
-    build_push_op(%JS{}, resolved_target, client_event_name, [])
+  def build_push_op(resolved_target, client_event_name, module) do
+    build_push_op(%JS{}, resolved_target, client_event_name, module, [])
   end
 
   @doc false

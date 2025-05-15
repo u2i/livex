@@ -18,13 +18,13 @@ defmodule Livex.LivexView do
   ```elixir
   # State stored in URL, survives refreshes, typed as :integer
   state :page_number, :integer, url?: true
-  
+
   # State stored in URL, survives refreshes, typed as :string
   state :category_filter, :string, url?: true
-  
+
   # Client-side state, survives reconnects but not refreshes, typed as :boolean
   state :show_advanced_search, :boolean
-  
+
   # Component state type - parent can control this component's attributes
   state :edit_form, MyApp.Components.EditForm
   ```
@@ -64,7 +64,7 @@ defmodule Livex.LivexView do
   assign_new(socket, :profile, [:user_id], fn assigns ->
     Accounts.get_user_profile(assigns.user_id)
   end)
-  
+
   # Initial assignment (no dependencies)
   assign_new(socket, :is_admin_view, fn -> false end)
   ```
@@ -156,6 +156,10 @@ defmodule Livex.LivexView do
 
       def on_mount(:__livex, params, session, socket) do
         Livex.LivexView.on_mount(__MODULE__, params, session, socket)
+      end
+
+      def handle_event(event, %{"__module" => module} = params, socket) do
+        Livex.Handlers.handle_event(__MODULE__, event, params, socket)
       end
 
       @before_compile unquote(__MODULE__)

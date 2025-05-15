@@ -253,9 +253,16 @@ defmodule Livex.LivexComponent do
         )
       end
 
+      def handle_event(event, %{"__module" => module} = params, socket) do
+        Livex.Handlers.handle_event(__MODULE__, event, params, socket)
+      end
+
       alias Phoenix.LiveView.Socket
 
-      defdelegate push_emit(socket, event, opts), to: Livex.Utils
+      def push_emit(socket, event, opts) do
+        Livex.Utils.push_emit(__MODULE__, socket, event, opts)
+      end
+
       defdelegate push_js(socket, event), to: Livex.Utils
       defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
       defdelegate stream_new(socket, key, deps, fun), to: Livex.Utils
@@ -299,6 +306,18 @@ defmodule Livex.LivexComponent do
 
       def render(assigns) do
         super(assigns) |> Livex.LivexComponent.inject_after_div(__MODULE__, assigns)
+      end
+
+      if Module.defines?(__MODULE__, {:mount, 1}, :def) do
+        defoverridable mount: 1
+
+        def mount(socket) do
+          assign(socket, :__module, __MODULE__) |> super()
+        end
+      else
+        def mount(socket) do
+          {:ok, assign(socket, :__module, __MODULE__)}
+        end
       end
 
       if Module.defines?(__MODULE__, {:handle_event, 3}, :def) do

@@ -30,12 +30,13 @@ defmodule Livex.Utils do
   end
   ```
   """
-  def push_emit(%Socket{} = socket, event, opts \\ []) do
+  def push_emit(module, %Socket{} = socket, event, opts \\ []) do
     push_js(
       socket,
       JSX.build_push_op(
         Livex.JSX.get_target_from_assigns(socket.assigns),
         socket.assigns[String.to_existing_atom("phx-#{event}")],
+        module,
         opts
       )
     )

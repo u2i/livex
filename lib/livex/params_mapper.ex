@@ -7,6 +7,7 @@ defmodule Livex.ParamsMapper do
   """
 
   alias Spark.Dsl.Extension
+  alias Livex.Schema.{Attr, State}
 
   @doc """
   Map and cast parameters for a given component, optionally scoped by an `id`.
@@ -25,6 +26,7 @@ defmodule Livex.ParamsMapper do
   defp process(%{} = params, component) do
     component
     |> Extension.get_entities([:attributes])
+    |> Enum.filter(fn i -> match?(%Attr{}, i) || match?(%State{}, i) end)
     |> Enum.reduce(%{}, &reduce_attr(&1, params, &2))
   end
 
@@ -51,6 +53,7 @@ defmodule Livex.ParamsMapper do
               function_exported?(type, :__info__, 1) ->
             type
             |> Extension.get_entities([:attributes])
+            |> Enum.filter(fn i -> match?(%Attr{}, i) || match?(%State{}, i) end)
             |> case do
               [] -> cast(raw, type)
               props -> build_props(raw || %{}, props)
