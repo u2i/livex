@@ -118,8 +118,8 @@ Livex aims to simplify the LiveView/LiveComponent lifecycle (mount, update,
 handle_params) by consolidating data derivation and initial assignment logic
 into a pre_render/1 callback, coupled with enhanced assign and stream functions.
 
-The typical flow becomes: render -> event -> reducer (handle_event, handle_info,
-handle_async) -> pre_render -> render.
+The typical flow becomes: render (pre_render, render)-> event -> reducer
+(handle_event, handle_info, handle_async) -> render etc.
 
 The pre_render callback largely replaces both mount and handle_params, providing
 a single place to handle state initialization and data derivation. The standard
