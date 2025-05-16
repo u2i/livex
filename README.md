@@ -406,15 +406,14 @@ defmodule MyAppWeb.Components.EditableField do
 
   def render(assigns) do
     ~H"""
-    <div>
-      <%= if @is_editing do %>
-        <input type="text" phx-target={@myself} phx-change="update_value" value={@current_value} />
-        <button phx-target={@myself} phx-click="save_changes">Save</button>
-        <button phx-target={@myself} phx-click={JSX.assign_state(is_editing: false)}>Cancel</button>
-      <% else %>
-        <span><%= @current_value %></span>
-        <button phx-target={@myself} phx-click={JSX.assign_state(is_editing: true)}>Edit</button>
-      <% end %>
+    <div :if={@is_editing}>
+      <input type="text" phx-target={@myself} phx-change="update_value" value={@current_value} />
+      <button phx-target={@myself} phx-click="save_changes">Save</button>
+      <button phx-target={@myself} phx-click={JSX.assign_state(is_editing: false)}>Cancel</button>
+    </div>
+    <div :if={!@is_editing}></div>
+      <span>{@current_value}</span>
+      <button phx-target={@myself} phx-click={JSX.assign_state(is_editing: true)}>Edit</button>
     </div>
     """
   end
@@ -531,17 +530,15 @@ defmodule MyAppWeb.FilterComponent do
     ~H"""
     <div class="filter-panel">
       <h3>Filters</h3>
-      <div class="filter-options">
-        <%= for filter <- @available_filters do %>
-          <button
-            class={if @selected_filter == filter, do: "selected", else: ""}
-            phx-target={@myself}
-            phx-click="select_filter"
-            phx-value-filter={filter}
-          >
-            <%= filter %>
-          </button>
-        <% end %>
+      <div :for={filter <- @available_filters} class="filter-options">
+        <button
+          class={if @selected_filter == filter, do: "selected", else: ""}
+          phx-target={@myself}
+          phx-click="select_filter"
+          phx-value-filter={filter}
+        >
+          <%= filter %>
+        </button>
       </div>
     </div>
     """
@@ -585,13 +582,11 @@ defmodule MyAppWeb.ProductsView do
         available_filters={["all", "electronics", "clothing", "books"]}
       />
 
-      <div class="product-list">
-        <%= for product <- @products do %>
-          <div class="product-card">
-            <h3><%= product.name %></h3>
-            <p><%= product.price %></p>
-          </div>
-        <% end %>
+      <div :for={product <- @products} class="product-list">
+        <div class="product-card">
+          <h3><%= product.name %></h3>
+          <p><%= product.price %></p>
+        </div>
       </div>
     </div>
     """
@@ -660,7 +655,7 @@ defmodule MyAppWeb.Components.RealtimeDocumentStatus do
   def render(assigns) do
     ~H"""
     <div class="status-badge">
-      Document <%= @document_id %>: <%= @status_message %>
+      Document {@document_id}: {@status_message}
     </div>
     """
   end
