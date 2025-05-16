@@ -374,12 +374,13 @@ Example of conditional state updates:
 
 Livex enhances event handling for components, allowing them to emit custom
 events that parent LiveViews or LiveComponents can listen for, similar to how
-standard phx-click and other events work.
+standard phx-click and other DOM events work.
 
 - **Emitting from the component's template**: Use JSX.emit(:event_name, value:
   %{...}) within a phx-click or other event binding.
-- **Emitting from the component's Elixir code**: Use push_emit(socket,
-  :event_name, payload \\ %{}).
+- **Emitting from the component's Elixir code**: Use push*emit(socket,
+  :event_name, payload \\ %{}). \_I'm considering removing this, the use cases
+  for this may be better handled by send_message.*
 
 Example:
 
@@ -483,6 +484,141 @@ defmodule MyAppWeb.SettingsView do
   end
 end
 ```
+
+#### Internal Messaging: send_message & handle_message
+
+The DOM messages have their limitations and are best used to be able to
+respond to DOM interactions. Indeed the LiveView documentation describes a
+mechanism for supporting standardized hooks between child -> parent.
+
+But we can make this more ergonomic. So Livex provides a lightweight internal
+messaging mechanism through `send_message` and `handle_message`.
+
+Key differences from DOM events:
+
+- `send_message` is called from handle\_\* functions, not from templates
+- Messages are handled by `handle_message` callbacks, not `handle_event`
+- Primarily designed for child-to-parent component communication initiated
+  from the server. However, you can specify any component or the top level
+  view as the target.
+- Provides a cleaner separation between UI events and internal component logic
+  making for a clean external interface.
+- Supports pattern matching on source module name: to avoid issues with
+  conflicting event names
+
+Example of child-to-parent communication:
+
+```elixir
+# Child Component
+defmodule MyAppWeb.FilterComponent do
+  use MyAppWeb, :livex_component
+
+  attr :id, :string, required: true
+  attr :available_filters, :list, required: true
+  state :selected_filter, :string
+
+  def handle_event("select_filter", %{"filter" => filter}, socket) do
+    # Update local state
+    socket = assign(socket, :selected_filter, filter)
+
+    # Notify parent about the filter change
+    socket = send_message(socket, {:filter_changed, filter})
+
+    {:noreply, socket}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <div class="filter-panel">
+      <h3>Filters</h3>
+      <div class="filter-options">
+        <%= for filter <- @available_filters do %>
+          <button
+            class={if @selected_filter == filter, do: "selected", else: ""}
+            phx-target={@myself}
+            phx-click="select_filter"
+            phx-value-filter={filter}
+          >
+            <%= filter %>
+          </button>
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+end
+
+# Parent LiveView
+defmodule MyAppWeb.ProductsView do
+  use MyAppWeb, :livex_view
+
+  state :products, :list
+  state :current_filter, :string
+
+  def pre_render(socket) do
+    {:noreply,
+     socket
+     |> assign_new(:products, fn -> fetch_products() end)
+     |> assign_new(:current_filter, fn -> "all" end)}
+  end
+
+  # Handle the message sent from the child component
+  def handle_message(FilterComponent, :filter_changed, filter}, socket) do
+    # Update the product list based on the new filter
+    filtered_products = filter_products(socket.assigns.products, filter)
+
+    {:noreply,
+     socket
+     |> assign(:current_filter, filter)
+     |> assign(:products, filtered_products)}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <div class="products-page">
+      <h1>Products (<%= @current_filter %>)</h1>
+
+      <.live_component
+        module={MyAppWeb.FilterComponent}
+        id="product-filter"
+        target={@myself}
+        available_filters={["all", "electronics", "clothing", "books"]}
+      />
+
+      <div class="product-list">
+        <%= for product <- @products do %>
+          <div class="product-card">
+            <h3><%= product.name %></h3>
+            <p><%= product.price %></p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  defp filter_products(products, "all"), do: products
+  defp filter_products(products, category) do
+    Enum.filter(products, &(&1.category == category))
+  end
+
+  defp fetch_products do
+    # Fetch products from database or API
+    [
+      %{name: "Laptop", price: "$999", category: "electronics"},
+      %{name: "T-shirt", price: "$25", category: "clothing"},
+      %{name: "Novel", price: "$15", category: "books"}
+    ]
+  end
+end
+```
+
+When to use `send_message`/`handle_message`:
+
+- For child-to-parent component communication and related activities
+- When you want to separate UI event handling from business logic
+- To create a cleaner separation of concerns in complex component hierarchies
+- When you need more direct communication than what phx-<event> provides
 
 ### Enable PubSub for Components (assign_topic)
 

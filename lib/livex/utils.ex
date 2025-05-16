@@ -107,4 +107,22 @@ defmodule Livex.Utils do
       socket
     end
   end
+
+  def send_message(module, socket, event, payload) do
+    case target = socket.assigns.target do
+      nil ->
+        send(self(), %{__dispatch_message: event, source_module: module, payload: payload})
+        socket
+
+      _ ->
+        {:ok, socket} =
+          Phoenix.LiveView.send_update(socket, target, %{
+            __dispatch_message: event,
+            source_module: module,
+            payload: payload
+          })
+
+        socket
+    end
+  end
 end
