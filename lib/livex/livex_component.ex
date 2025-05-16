@@ -260,6 +260,10 @@ defmodule Livex.LivexComponent do
       defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
       defdelegate stream_new(socket, key, deps, fun), to: Livex.Utils
 
+      def send_message(socket, event, payload) do
+        Livex.Utils.send_message(__MODULE__, socket, event, payload)
+      end
+
       @before_compile unquote(__MODULE__)
     end
   end
@@ -319,6 +323,7 @@ defmodule Livex.LivexComponent do
           {:reply, msg, socket}
         end
       else
+        @impl true
         def handle_event(event, params, socket) do
           pre_render(socket)
         end
@@ -348,6 +353,20 @@ defmodule Livex.LivexComponent do
   def override_update(%{__dispatch_event: fun, data: data} = _assigns, socket, _, _) do
     fun.(data, socket)
     socket
+  end
+
+  def override_update(
+        %{__dispatch_message: message, source_module: source_module, payload: payload} = _assigns,
+        socket,
+        module,
+        _
+      ) do
+    if Module.defines?(module, {:handle_message, 4}) do
+      {:noreply, socket} = module.handle_message(source_module, message, payload, socket)
+      {:ok, socket}
+    else
+      {:ok, socket}
+    end
   end
 
   def override_update(assigns, socket, current_params, module, super) do
