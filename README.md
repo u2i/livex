@@ -378,8 +378,8 @@ standard phx-click and other DOM events work.
 
 - **Emitting from the component's template**: Use JSX.emit(:event_name, value:
   %{...}) within a phx-click or other event binding.
-- **Emitting from the component's Elixir code**: Use push*emit(socket,
-  :event_name, payload \\ %{}). \_I'm considering removing this, the use cases
+- **Emitting from the component's Elixir code**: Use push_emit(socket,
+  :event*name, payload \\ %{}). I'm considering removing this, the use cases
   for this may be better handled by send_message.*
 
 Example:
@@ -560,7 +560,7 @@ defmodule MyAppWeb.ProductsView do
   end
 
   # Handle the message sent from the child component
-  def handle_message(FilterComponent, :filter_changed, filter}, socket) do
+  def handle_message(FilterComponent, :filter_changed, filter, socket) do
     # Update the product list based on the new filter
     filtered_products = filter_products(socket.assigns.products, filter)
 
@@ -573,7 +573,7 @@ defmodule MyAppWeb.ProductsView do
   def render(assigns) do
     ~H"""
     <div class="products-page">
-      <h1>Products (<%= @current_filter %>)</h1>
+      <h1>Products ({@current_filter})</h1>
 
       <.live_component
         module={MyAppWeb.FilterComponent}
@@ -584,8 +584,8 @@ defmodule MyAppWeb.ProductsView do
 
       <div :for={product <- @products} class="product-list">
         <div class="product-card">
-          <h3><%= product.name %></h3>
-          <p><%= product.price %></p>
+          <h3>{product.name}</h3>
+          <p>{product.price}</p>
         </div>
       </div>
     </div>
