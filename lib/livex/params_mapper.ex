@@ -49,11 +49,17 @@ defmodule Livex.ParamsMapper do
         cond do
           is_atom(type) and Code.ensure_loaded?(type) and
               function_exported?(type, :__info__, 1) ->
-            type
-            |> Extension.get_entities([:attributes])
-            |> case do
-              [] -> cast(raw, type)
-              props -> build_props(raw || %{}, props)
+            case raw do
+              nil ->
+                nil
+
+              _ ->
+                type
+                |> Extension.get_entities([:attributes])
+                |> case do
+                  [] -> cast(raw, type)
+                  props -> build_props(raw || %{}, props)
+                end
             end
 
           true ->

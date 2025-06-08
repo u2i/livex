@@ -148,7 +148,7 @@ defmodule Livex.LivexView do
       use Phoenix.LiveView
       use Schema
 
-      defdelegate push_js(socket, event), to: Livex.Utils
+      defdelegate push_js(socket, event, opts), to: Livex.Utils
       defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
       defdelegate stream_new(socket, key, deps, fun), to: Livex.Utils
 
@@ -156,15 +156,6 @@ defmodule Livex.LivexView do
 
       def on_mount(:__livex, params, session, socket) do
         Livex.LivexView.on_mount(__MODULE__, params, session, socket)
-      end
-
-      def handle_info(
-            %{__dispatch_message: message, source_module: source_module, payload: payload},
-            socket
-          ) do
-        if function_exported?(__MODULE__, :handle_message, 4) do
-          apply(__MODULE__, :handle_message, [source_module, message, payload, socket])
-        end
       end
 
       @before_compile unquote(__MODULE__)
@@ -248,6 +239,22 @@ defmodule Livex.LivexView do
           pre_render(socket)
         end
       end
+
+      if Module.defines?(__MODULE__, {:handle_message, 4}, :def) do
+        defoverridable handle_message: 4
+
+        def handle_message(module, event, payload, %Phoenix.LiveView.Socket{} = socket) do
+          {:noreply, %Phoenix.LiveView.Socket{} = socket} =
+            super(module, event, payload, socket)
+
+          {:noreply, %Phoenix.LiveView.Socket{}} =
+            pre_render(socket)
+        end
+      else
+        def handle_message(module, event, payload, socket) do
+          {:noreply, %Phoenix.LiveView.Socket{} = pre_render(socket)}
+        end
+      end
     end
   end
 
@@ -309,6 +316,44 @@ defmodule Livex.LivexView do
         end
       )
       |> Phoenix.LiveView.attach_hook(
+        :register_topic,
+        :handle_info,
+        fn
+          {:__register_topic, target, topic}, socket ->
+            socket = Livex.LivexView.register_topic(target, topic, socket)
+            {:halt, socket}
+
+          _, socket ->
+            {:cont, socket}
+        end
+      )
+      |> Phoenix.LiveView.attach_hook(
+        :dispatch_message,
+        :handle_info,
+        fn
+          %{__dispatch_message: message, source_module: source_module, payload: payload},
+          socket ->
+            if function_exported?(module, :handle_message, 4) do
+              {:noreply, %Phoenix.LiveView.Socket{} = socket} =
+                apply(module, :handle_message, [source_module, message, payload, socket])
+
+              {:halt, socket}
+            else
+              {:halt, socket}
+            end
+
+          _, socket ->
+            {:cont, socket}
+        end
+      )
+      |> Phoenix.LiveView.attach_hook(
+        :dispatch_topic,
+        :handle_info,
+        fn msg, socket ->
+          {:cont, Livex.LivexView.handle_info_dispatch(msg, socket)}
+        end
+      )
+      |> Phoenix.LiveView.attach_hook(
         :clear_params,
         :after_render,
         fn socket ->
@@ -318,5 +363,39 @@ defmodule Livex.LivexView do
       )
 
     {:cont, socket}
+  end
+
+  def register_topic(target, topic, socket) do
+    IO.puts("registering topic")
+
+    private =
+      update_in(
+        socket.private,
+        [Access.key(:subscriptions, %{}), Access.key(topic, [])],
+        fn tags ->
+          [target | tags]
+        end
+      )
+
+    Map.put(socket, :private, private)
+  end
+
+  def handle_info_dispatch({topic, payload}, socket) do
+    components =
+      if Map.has_key?(socket.private, :subscriptions) do
+        socket.private.subscriptions[topic]
+      else
+        []
+      end
+
+    Enum.map(components, fn component ->
+      Phoenix.LiveView.send_update(
+        self(),
+        component,
+        %{__handle_info: {topic, payload}}
+      )
+    end)
+
+    socket
   end
 end

@@ -165,6 +165,7 @@ defmodule Livex.JSX do
       resolved_target = Livex.JSX.get_target(assigns_var, opts)
 
       Livex.JSX.build_push_op(
+        %JS{},
         resolved_target,
         resolved_client_event,
         opts
@@ -181,6 +182,7 @@ defmodule Livex.JSX do
       resolved_target = Livex.JSX.get_target(assigns_var, [])
 
       Livex.JSX.build_push_op(
+        %JS{},
         resolved_target,
         resolved_client_event,
         []
@@ -195,10 +197,17 @@ defmodule Livex.JSX do
   def build_push_op(%Phoenix.LiveView.JS{} = js, resolved_target, client_event_name, opts_list) do
     value_map = Keyword.get(opts_list, :value, %{})
 
-    JS.push(js, "#{client_event_name}",
-      target: resolved_target,
-      value: value_map
-    )
+    # Handle the case where client_event_name is a JS object
+    if is_struct(client_event_name, Phoenix.LiveView.JS) do
+      # Find the __component_action push operation in the JS object and merge our options
+      merge_with_component_action(client_event_name, resolved_target, value_map)
+    else
+      # Regular string event name
+      JS.push(js, "#{client_event_name}",
+        target: resolved_target,
+        value: value_map
+      )
+    end
   end
 
   @doc false
@@ -214,6 +223,33 @@ defmodule Livex.JSX do
   @doc false
   def build_push_op(resolved_target, client_event_name) do
     build_push_op(%JS{}, resolved_target, client_event_name, [])
+  end
+
+  @doc false
+  def merge_with_component_action(%Phoenix.LiveView.JS{ops: ops} = js, resolved_target, value_map) do
+    # Find the __component_action push operation
+    updated_ops =
+      Enum.map(ops, fn
+        %{kind: :push, event: "__component_action", args: args} = op ->
+          # Merge our value_map with the existing value map
+          updated_args =
+            Map.update(args, :value, value_map, fn existing_value ->
+              Map.merge(existing_value, value_map)
+            end)
+
+          # Update target if provided
+          updated_args =
+            if resolved_target,
+              do: Map.put(updated_args, :target, resolved_target),
+              else: updated_args
+
+          %{op | args: updated_args}
+
+        op ->
+          op
+      end)
+
+    %{js | ops: updated_ops}
   end
 
   @doc false
@@ -283,6 +319,17 @@ defmodule Livex.JSX do
     end
   end
 
+  defmacro assign_state(js, key, val) do
+    quote do
+      Livex.JSX.do_assign_state(
+        unquote(js),
+        var!(assigns)[:myself],
+        unquote(key),
+        unquote(val)
+      )
+    end
+  end
+
   @doc """
   Creates a JS command to trigger a component update without changing any data.
 
@@ -303,6 +350,13 @@ defmodule Livex.JSX do
   @doc false
   def do_assign_state(target, key, value) do
     JS.push("__component_action",
+      target: target,
+      value: %{key => value}
+    )
+  end
+
+  def do_assign_state(js, target, key, value) do
+    JS.push(js, "__component_action",
       target: target,
       value: %{key => value}
     )

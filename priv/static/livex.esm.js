@@ -46,7 +46,7 @@ function buildLvPageUrls() {
       dataAttrs[key] = JSON.parse(value);
     }
   });
-  document.querySelectorAll("div[data-phx-component]").forEach((comp) => {
+  document.querySelectorAll("[data-phx-component]").forEach((comp) => {
     const compId = comp.id;
     if (!compId)
       return;
@@ -94,8 +94,11 @@ function enhanceLiveSocket(liveSocket) {
   liveSocket.pushPatchUrl = (href, linkState = {}) => {
     liveSocket.historyPatch(href, linkState);
   };
-  window.addEventListener("phx:js-execute", ({ detail }) => {
-    liveSocket.execJS(document.body, detail.ops);
+  window.addEventListener("phx:js-execute", (event) => {
+    const selector = event.detail.to || "body";
+    document.querySelectorAll(selector).forEach((element) => {
+      window.liveSocket.execJS(element, event.detail.ops);
+    });
   });
   return liveSocket;
 }

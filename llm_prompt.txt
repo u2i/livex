@@ -1,0 +1,415 @@
+# Livex Guide for LLMs
+
+This guide provides instructions for writing Phoenix LiveView applications using Livex, a library that enhances LiveView with improved state management and component features.
+
+## Core Concepts
+
+Livex extends Phoenix LiveView with:
+
+1. **Declarative State Management**: Define state properties with types and persistence options
+2. **Simplified Lifecycle**: Use pre_render for data derivation and initialization
+3. **Component Properties**: Define component attributes with typing
+4. **Enhanced State Updates**: Use JSX.assign_state for direct state updates from templates
+5. **Component Events**: Emit and handle events between components and parents
+6. **Dependency-aware Data Derivation**: Use assign_new and stream_new with dependencies
+
+## Setting Up a Livex Project
+
+1. Add Livex to your dependencies in mix.exs:
+```elixir
+def deps do
+  [
+    {:livex, "~> 0.1.2"}
+  ]
+end
+```
+
+2. Configure your web module (lib/my_app_web.ex):
+```elixir
+defmodule MyAppWeb do
+  # ... existing code ...
+
+  def livex_view do
+    quote do
+      use Phoenix.LiveView,
+        layout: {MyAppWeb.Layouts, :app}
+      
+      unquote(html_helpers())
+      
+      # Livex specific uses
+      use Livex.LivexView
+      use Livex.JSX
+    end
+  end
+
+  def livex_component do
+    quote do
+      use Phoenix.LiveComponent
+      
+      # Livex specific uses
+      use Livex.LivexComponent
+      use Livex.JSX
+    end
+  end
+  
+  # ... rest of your web module ...
+end
+```
+
+3. Add JavaScript integration in assets/js/app.js:
+```javascript
+import { enhanceLiveSocket } from "livex";
+
+// After creating your LiveSocket instance but before connecting
+let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}});
+liveSocket = enhanceLiveSocket(liveSocket);
+liveSocket.connect();
+```
+
+## Creating a LivexView
+
+```elixir
+defmodule MyAppWeb.ProductListView do
+  use MyAppWeb, :livex_view
+  
+  # Define state properties
+  state :category, :string, url?: true  # Stored in URL, survives page refreshes
+  state :page, :integer, url?: true     # Stored in URL, survives page refreshes
+  state :show_filters, :boolean         # Client-side state, survives reconnects
+  state :product_form, MyAppWeb.Components.ProductForm  # Component state
+  
+  def pre_render(socket) do
+    {:noreply,
+     socket
+     # Set initial values
+     |> assign_new(:category, fn -> "all" end)
+     |> assign_new(:page, fn -> 1 end)
+     |> assign_new(:show_filters, fn -> false end)
+     |> assign_new(:page_title, fn -> "Product Catalog" end)
+     # Derive data based on state dependencies
+     |> assign_new(:categories, fn -> Products.list_categories() end)
+     |> assign_new(:products_count, [:category], fn assigns ->
+       Products.count_products(category: assigns.category)
+     end)
+     |> stream_new(:products, [:category, :page], fn assigns ->
+       Products.list_products(
+         category: assigns.category,
+         page: assigns.page,
+         per_page: 20
+       )
+     end)}
+  end
+  
+  def render(assigns) do
+    ~H"""
+    <div class="container">
+      <h1><%= @page_title %></h1>
+      
+      <div class="filters">
+        <button phx-click={JSX.assign_state(show_filters: !@show_filters)}>
+          <%= if @show_filters, do: "Hide Filters", else: "Show Filters" %>
+        </button>
+        
+        <%= if @show_filters do %>
+          <div class="filter-panel">
+            <form phx-change="update_category">
+              <select name="category">
+                <option value="all">All Categories</option>
+                <%= for cat <- @categories do %>
+                  <option value={cat.id} selected={@category == cat.id}><%= cat.name %></option>
+                <% end %>
+              </select>
+            </form>
+          </div>
+        <% end %>
+      </div>
+      
+      <div class="products-grid">
+        <p>Showing <%= @products_count %> products</p>
+        
+        <%= for product <- @streams.products do %>
+          <div class="product-card">
+            <h3><%= product.name %></h3>
+            <p><%= product.price %></p>
+            <button phx-click="show_product_form" phx-value-id={product.id}>Edit</button>
+          </div>
+        <% end %>
+      </div>
+      
+      <div class="pagination">
+        <button 
+          phx-click={JSX.assign_state(:page, @page - 1)}
+          disabled={@page <= 1}
+        >Previous</button>
+        <span>Page <%= @page %></span>
+        <button 
+          phx-click={JSX.assign_state(:page, @page + 1)}
+          disabled={@page * 20 >= @products_count}
+        >Next</button>
+      </div>
+      
+      <%= if @product_form do %>
+        <.live_component
+          module={MyAppWeb.Components.ProductForm}
+          id="product-form"
+          {@product_form}
+          phx-form_submitted="handle_form_submit"
+          phx-form_cancelled="handle_form_cancel"
+        />
+      <% end %>
+    </div>
+    """
+  end
+  
+  def handle_event("update_category", %{"category" => category}, socket) do
+    # Reset page when changing category
+    {:noreply, assign(socket, category: category, page: 1)}
+  end
+  
+  def handle_event("show_product_form", %{"id" => id}, socket) do
+    product = Products.get_product(id)
+    
+    {:noreply, 
+     assign(socket, :product_form, %{
+       product_id: id,
+       name: product.name,
+       price: product.price,
+       description: product.description
+     })}
+  end
+  
+  def handle_event("handle_form_submit", %{"product" => product_params}, socket) do
+    # Update product in database
+    Products.update_product(socket.assigns.product_form.product_id, product_params)
+    
+    {:noreply, assign(socket, :product_form, nil)}
+  end
+  
+  def handle_event("handle_form_cancel", _, socket) do
+    {:noreply, assign(socket, :product_form, nil)}
+  end
+end
+```
+
+## Creating a LivexComponent
+
+```elixir
+defmodule MyAppWeb.Components.ProductForm do
+  use MyAppWeb, :livex_component
+  
+  # Define component properties (passed from parent)
+  attr :product_id, :string, required: true
+  attr :name, :string, required: true
+  attr :price, :decimal, required: true
+  attr :description, :string
+  
+  # Define component state
+  state :is_submitting, :boolean
+  state :has_changes, :boolean
+  state :form_data, :map
+  
+  def pre_render(socket) do
+    {:noreply,
+     socket
+     # Initialize state
+     |> assign_new(:is_submitting, fn -> false end)
+     |> assign_new(:has_changes, fn -> false end)
+     # Initialize form_data from attrs
+     |> assign_new(:form_data, [:name, :price, :description], fn assigns ->
+       %{
+         name: assigns.name,
+         price: assigns.price,
+         description: assigns.description || ""
+       }
+     end)}
+  end
+  
+  def render(assigns) do
+    ~H"""
+    <div class="modal">
+      <div class="modal-content">
+        <h2>Edit Product</h2>
+        
+        <form phx-submit="save" phx-change="form_changed" phx-target={@myself}>
+          <div class="form-group">
+            <label for="name">Name</label>
+            <input type="text" name="name" value={@form_data.name} />
+          </div>
+          
+          <div class="form-group">
+            <label for="price">Price</label>
+            <input type="number" name="price" step="0.01" value={@form_data.price} />
+          </div>
+          
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea name="description"><%= @form_data.description %></textarea>
+          </div>
+          
+          <div class="form-actions">
+            <button 
+              type="button" 
+              phx-click={JSX.emit(:form_cancelled)}
+              disabled={@is_submitting}
+            >
+              Cancel
+            </button>
+            
+            <button 
+              type="submit" 
+              disabled={!@has_changes || @is_submitting}
+            >
+              <%= if @is_submitting, do: "Saving...", else: "Save Changes" %>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    """
+  end
+  
+  def handle_event("form_changed", %{"name" => name, "price" => price, "description" => description}, socket) do
+    form_data = %{
+      name: name,
+      price: price,
+      description: description
+    }
+    
+    # Check if form data differs from original attrs
+    has_changes = form_data.name != socket.assigns.name ||
+                  form_data.price != socket.assigns.price ||
+                  form_data.description != socket.assigns.description
+    
+    {:noreply, 
+     socket
+     |> assign(:form_data, form_data)
+     |> assign(:has_changes, has_changes)}
+  end
+  
+  def handle_event("save", %{"name" => name, "price" => price, "description" => description}, socket) do
+    # Set submitting state
+    socket = assign(socket, :is_submitting, true)
+    
+    # Prepare product params
+    product_params = %{
+      "name" => name,
+      "price" => price,
+      "description" => description
+    }
+    
+    # Emit event to parent with product data
+    socket = push_emit(socket, :form_submitted, %{product: product_params})
+    
+    {:noreply, socket}
+  end
+end
+```
+
+## Best Practices
+
+1. **State Organization**:
+   - Use `url?: true` for state that should be bookmarkable or survive page refreshes
+   - Keep ephemeral UI state (like open/closed panels) as regular state
+
+2. **Dependency Management**:
+   - Use `assign_new` and `stream_new` with explicit dependencies to avoid unnecessary recalculations
+   - Keep dependencies minimal - only include assigns that directly affect the calculation
+
+3. **Component Communication**:
+   - Use `JSX.emit` and `push_emit` for child-to-parent communication
+   - Use component state types for parent-to-child communication of complex state
+
+4. **State Updates**:
+   - Use `JSX.assign_state` for simple state updates directly from templates
+   - Use `handle_event` for complex state transitions or side effects
+
+5. **Initialization**:
+   - Use `pre_render` with `assign_new` for initialization and data derivation
+   - Set default values with `assign_new` without dependencies
+
+6. **URL State**:
+   - Group related URL parameters to avoid URL clutter
+   - Consider using JSON-encoded values for complex URL state
+
+## Common Patterns
+
+### Form Handling
+
+```elixir
+# In parent view
+state :form, MyApp.Components.UserForm
+
+def handle_event("show_form", %{"user_id" => id}, socket) do
+  user = Accounts.get_user(id)
+  {:noreply, assign(socket, :form, %{user_id: id, name: user.name, email: user.email})}
+end
+
+def handle_event("form_submitted", %{"user" => user_params}, socket) do
+  # Update user in database
+  {:noreply, assign(socket, :form, nil)}
+end
+```
+
+### Filtering and Pagination
+
+```elixir
+state :filters, :map, url?: true
+state :page, :integer, url?: true
+
+def pre_render(socket) do
+  {:noreply,
+   socket
+   |> assign_new(:filters, fn -> %{"status" => "active"} end)
+   |> assign_new(:page, fn -> 1 end)
+   |> stream_new(:items, [:filters, :page], fn assigns ->
+     fetch_items(assigns.filters, assigns.page)
+   end)}
+end
+```
+
+### Modal Management
+
+```elixir
+state :modal, :map
+
+def render(assigns) do
+  ~H"""
+  <%= if @modal do %>
+    <div class="modal">
+      <%= case @modal.type do %>
+        <% :confirm -> %>
+          <.confirm_dialog 
+            message={@modal.message}
+            on_confirm={@modal.on_confirm}
+            on_cancel={JSX.assign_state(:modal, nil)}
+          />
+        <% :form -> %>
+          <.live_component
+            module={@modal.component}
+            id={@modal.id}
+            {@modal.attrs}
+            phx-form_submitted="modal_submitted"
+            phx-form_cancelled="modal_cancelled"
+          />
+      <% end %>
+    </div>
+  <% end %>
+  """
+end
+```
+
+## Debugging Tips
+
+1. Use `IO.inspect(socket.assigns)` in `pre_render` to see the current state
+2. Check browser console for client-side state persistence issues
+3. Use Phoenix LiveView debugger to inspect component hierarchy
+4. Verify URL parameters match your state definitions
+5. Check for circular dependencies in `assign_new` and `stream_new`
+
+## Performance Considerations
+
+1. Keep URL state minimal to avoid large URLs
+2. Use `stream_new` for large collections instead of `assign_new`
+3. Be careful with dependencies in `assign_new` - too many can cause unnecessary recalculations
+4. Consider using `phx-debounce` for rapid state changes like search inputs
+5. Use `phx-update="replace"` for components that don't need to preserve internal DOM state

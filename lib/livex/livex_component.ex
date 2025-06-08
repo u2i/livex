@@ -256,9 +256,10 @@ defmodule Livex.LivexComponent do
       alias Phoenix.LiveView.Socket
 
       defdelegate push_emit(socket, event, opts), to: Livex.Utils
-      defdelegate push_js(socket, event), to: Livex.Utils
+      defdelegate push_js(socket, event, opts), to: Livex.Utils
       defdelegate assign_new(socket, key, deps, fun), to: Livex.Utils
       defdelegate stream_new(socket, key, deps, fun), to: Livex.Utils
+      defdelegate subscribe(socket, key, deps, fun), to: Livex.Utils
 
       def send_message(socket, event, payload) do
         Livex.Utils.send_message(__MODULE__, socket, event, payload)
@@ -343,6 +344,19 @@ defmodule Livex.LivexComponent do
           pre_render(socket)
         end
       end
+
+      if Module.defines?(__MODULE__, {:handle_info, 2}, :def) do
+        defoverridable handle_info: 2
+
+        def handle_info(msg, socket) do
+          {:noreply, socket} = super(msg, socket)
+          pre_render(socket)
+        end
+      else
+        def handle_info(_msg, socket) do
+          pre_render(socket)
+        end
+      end
     end
   end
 
@@ -369,7 +383,27 @@ defmodule Livex.LivexComponent do
     end
   end
 
+  def override_update(
+        %{__handle_info: {_topic, _payload} = msg},
+        socket,
+        _,
+        module,
+        _
+      ) do
+    IO.puts("A")
+
+    if Kernel.function_exported?(module, :handle_info, 2) do
+      IO.puts("B")
+      {:noreply, socket} = module.handle_info(msg, socket)
+      {:ok, socket}
+    else
+      {:ok, socket}
+    end
+  end
+
   def override_update(assigns, socket, current_params, module, super) do
+    IO.inspect(assigns, label: :fallback)
+
     socket =
       if current_params do
         # we only have params when we're rehydrating, so we need to reset the changed status

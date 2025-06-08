@@ -39,6 +39,14 @@ defmodule Livex.RenderedManipulator do
   """
   def manipulate_rendered(
         mode,
+        rendered,
+        attributes,
+        assigns,
+        options \\ nil
+      )
+
+  def manipulate_rendered(
+        :inject = mode,
         %Rendered{
           static: static,
           dynamic: old_dyn,
@@ -46,34 +54,74 @@ defmodule Livex.RenderedManipulator do
         } = rendered,
         attributes,
         assigns,
-        options \\ nil
+        options
       ) do
-    with attribute_snippets <- attribute_snippets(attributes, assigns),
+    with attribute_snippets <-
+           attribute_snippets(attributes, assigns),
          attribute_snippets <- maybe_prepend_route(mode, attribute_snippets),
          attributes_str <- Enum.join(attribute_snippets, " "),
-         new_static <- build_static(mode, static, attributes_str, options),
-         new_fingerprint <- fingerprint(old_fingerprint, attributes_str) do
-      %Rendered{rendered | static: new_static, dynamic: old_dyn, fingerprint: new_fingerprint}
+         new_static <- build_static(mode, static, attributes_str, options) do
+      new_dyn = fn arg ->
+        [head | tail] = old_dyn.(arg)
+        [head] ++ [attributes_str] ++ tail
+      end
+
+      # new_fingerprint <- fingerprint(old_fingerprint, attributes_str) do
+      %Rendered{
+        rendered
+        | static: new_static,
+          dynamic: new_dyn,
+          fingerprint: old_fingerprint
+      }
+    end
+  end
+
+  def manipulate_rendered(
+        :wrap = mode,
+        %Rendered{
+          static: static,
+          dynamic: old_dyn,
+          fingerprint: old_fingerprint
+        } = rendered,
+        attributes,
+        assigns,
+        options
+      ) do
+    with attribute_snippets <-
+           attribute_snippets(attributes, assigns),
+         attribute_snippets <- maybe_prepend_route(mode, attribute_snippets),
+         attributes_str <- Enum.join(attribute_snippets, " "),
+         new_static <- build_static(mode, static, attributes_str, options) do
+      id = Keyword.get(options, :id)
+      id_str = maybe_add_dom_id(id)
+
+      new_dyn = fn arg ->
+        new = old_dyn.(arg)
+        [id_str <> attributes_str] ++ [" "] ++ new
+      end
+
+      # new_fingerprint <- fingerprint(old_fingerprint, attributes_str) do
+      %Rendered{
+        rendered
+        | static: new_static,
+          dynamic: new_dyn,
+          fingerprint: old_fingerprint
+      }
     end
   end
 
   # Build static content for inject mode
-  defp build_static(:inject, [first_chunk | rest_static], attributes_str, _options) do
-    new_first = first_chunk <> " " <> attributes_str
-    [new_first | rest_static]
+  defp build_static(:inject, [first_chunk | rest_static], _attributes_str, _options) do
+    [first_chunk] ++ [" "] ++ rest_static
   end
 
   # Build static content for wrap mode
-  defp build_static(:wrap, [first_chunk | rest_static], attributes_str, options) do
+  defp build_static(:wrap, rest_static, _attributes_str, options) do
     tag = Keyword.fetch!(options, :tag)
-    id = Keyword.get(options, :id)
-    id_str = maybe_add_dom_id(id)
-
-    new_first = first_chunk <> "<#{tag}#{id_str} #{attributes_str}>"
     [last_chunk | rest_reverse] = Enum.reverse(rest_static)
     new_last = "</#{tag}>" <> last_chunk
 
-    [new_first] ++ Enum.reverse(rest_reverse) ++ [new_last]
+    ["<#{tag}"] ++ [">"] ++ Enum.reverse(rest_reverse) ++ [new_last]
   end
 
   @doc """
@@ -114,16 +162,16 @@ defmodule Livex.RenderedManipulator do
     |> HTML.safe_to_string()
   end
 
-  # a bit crude, but should work - take the fingerprint of the underlying compute_fingerprint
-  # and add all the attributes added to the tag
-  defp fingerprint(underlying, attributes) do
-    <<fingerprint::8*16>> =
-      [underlying, attributes]
-      |> :erlang.term_to_binary()
-      |> :erlang.md5()
-
-    fingerprint
-  end
+  # # a bit crude, but should work - take the fingerprint of the underlying compute_fingerprint
+  # # and add all the attributes added to the tag
+  # defp fingerprint(underlying, attributes) do
+  #   <<fingerprint::8*16>> =
+  #     [underlying, attributes]
+  #     |> :erlang.term_to_binary()
+  #     |> :erlang.md5()
+  #
+  #   fingerprint
+  # end
 
   def attribute_snippets(attributes, assigns) do
     attributes
@@ -146,7 +194,7 @@ defmodule Livex.RenderedManipulator do
 
   def maybe_prepend_route(:wrap, attributes) do
     route_attr =
-      "lv-route=\"#{encode_string(Process.get(:__current_route))}\""
+      " lv-route=\"#{encode_string(Process.get(:__current_route))}\""
 
     [route_attr | attributes]
   end

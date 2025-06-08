@@ -379,8 +379,25 @@ standard phx-click and other DOM events work.
 - **Emitting from the component's template**: Use JSX.emit(:event_name, value:
   %{...}) within a phx-click or other event binding.
 - **Emitting from the component's Elixir code**: Use push_emit(socket,
-  :event*name, payload \\ %{}). I'm considering removing this, the use cases
-  for this may be better handled by send_message.*
+  :event_name, payload \\ %{}).
+- **Combined state updates and events**: You can combine state updates with event
+  emission by using a JS struct as the event handler in the parent:
+
+  ```elixir
+  # In parent template
+  <.live_component
+    module={MyAppWeb.Components.EditableField}
+    id="my-field"
+    phx-field_updated={JSX.assign_state(modal_open: false)}
+  />
+
+  # In component
+  def handle_event("save_changes", _, socket) do
+    # This will both emit the event AND update the parent's state
+    socket = push_emit(socket, :field_updated, value: %{id: socket.assigns.field_id})
+    {:noreply, socket}
+  end
+  ```
 
 Example:
 

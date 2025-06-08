@@ -26,10 +26,10 @@ defmodule Livex.Handlers do
     mapped_params =
       Livex.ParamsMapper.map_params(
         module,
-        params
+        params |> IO.inspect(label: :params)
       )
 
-    socket = Component.assign(socket, mapped_params)
+    socket = Component.assign(socket, mapped_params |> IO.inspect(label: :mapped_params))
     module.pre_render(socket)
   end
 end
