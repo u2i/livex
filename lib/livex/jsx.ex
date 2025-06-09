@@ -309,12 +309,12 @@ defmodule Livex.JSX do
   <button phx-click={JSX.assign_state(:is_expanded, true)}>Expand</button>
   ```
   """
-  defmacro assign_state(key, val) do
+  defmacro assign_state(arg1, arg2) do
     quote do
       Livex.JSX.do_assign_state(
         var!(assigns)[:myself],
-        unquote(key),
-        unquote(val)
+        unquote(arg1),
+        unquote(arg2)
       )
     end
   end
@@ -345,6 +345,17 @@ defmodule Livex.JSX do
     quote do
       Livex.JSX.do_assign_state(var!(assigns)[:myself])
     end
+  end
+
+  @doc false
+  def do_assign_state(target, %Phoenix.LiveView.JS{} = js, opts) when is_list(opts) do
+    # Convert keyword list to map for multiple key-value pairs
+    value_map = Enum.into(opts, %{})
+
+    JS.push(js, "__component_action",
+      target: target,
+      value: value_map
+    )
   end
 
   @doc false

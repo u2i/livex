@@ -240,6 +240,293 @@ defmodule Livex.Utils do
     end)
   end
 
+  @doc """
+  Asynchronously assigns multiple values to the socket with dependency tracking.
+
+  This function allows you to perform multiple async operations with dependencies
+  between them. Operations will be executed in parallel when possible, but will respect
+  the dependency order.
+
+  ## Parameters
+
+  * `socket` - The LiveView socket
+  * `assignments` - A list of assignment specifications, each being a tuple of:
+    * `key` - The key to assign the value to
+    * `deps` - A list of keys that this value depends on (can include other keys being assigned)
+    * `fun` - A function that returns `{:ok, value}` or `{:error, reason}`
+
+  ## Examples
+
+  ```elixir
+  def mount(_params, _session, socket) do
+    {:ok,
+     assign_async_new(socket, [
+       # These two will run in parallel
+       {:location, [:location_id], fn ->
+         case MyApp.Domain.get_location(socket.assigns.location_id) do
+           {:ok, location} -> {:ok, location}
+           {:error, reason} -> {:error, reason}
+         end
+       end},
+       
+       {:user, [:user_id], fn ->
+         case MyApp.Accounts.get_user(socket.assigns.user_id) do
+           {:ok, user} -> {:ok, user}
+           {:error, reason} -> {:error, reason}
+         end
+       end},
+       
+       # This will run after both location and user are assigned
+       {:permissions, [:user, :location], fn ->
+         # These values will be available in the assigns when this function runs
+         user = socket.assigns.user.result
+         location = socket.assigns.location.result
+         
+         case MyApp.Permissions.get_permissions(user, location) do
+           {:ok, permissions} -> {:ok, permissions}
+           {:error, reason} -> {:error, reason}
+         end
+       end}
+     ])}
+  end
+  ```
+
+  ## Handling Results
+
+  Each assigned key will contain an `%AsyncResult{}` struct that you can pattern match on in your templates:
+
+  ```heex
+  <.async_result :let={location} assign={@location}>
+    <:loading>Loading location...</:loading>
+    <:failed :let={reason}>Failed to load location: <%= inspect(reason) %></:failed>
+    <div>Location: <%= location.name %></div>
+  </.async_result>
+  ```
+  """
+  def assign_async_new(%Socket{} = socket, assignments, caller) when is_list(assignments) do
+    # Extract all keys
+    all_keys = Enum.map(assignments, fn {key, _deps, _fun} -> key end)
+
+    # Create a dependency graph
+    dependency_graph = build_dependency_graph(assignments)
+
+    # Create a function that will execute all assignments in the correct order
+    async_fun = fn ->
+      # Create an agent to store intermediate results
+      {:ok, agent} = Agent.start_link(fn -> %{} end)
+
+      try do
+        # Execute assignments in topological order
+        execute_assignments_in_order(assignments, dependency_graph, agent)
+
+        # Get all results
+        results = Agent.get(agent, & &1)
+
+        # Check if any result is an error
+        if Enum.any?(results, fn {_key, result} ->
+             match?({:error, _}, result) || match?({:exit, _}, result)
+           end) do
+          # Return the first error
+          {_key, error} =
+            Enum.find(results, fn {_key, result} ->
+              match?({:error, _}, result) || match?({:exit, _}, result)
+            end)
+
+          error
+        else
+          # Create a map of successful results
+          result_map =
+            results
+            |> Enum.map(fn {key, {:ok, value}} -> {key, value} end)
+            |> Map.new()
+
+          {:ok, result_map}
+        end
+      after
+        Agent.stop(agent)
+      end
+    end
+
+    # Use Phoenix.LiveView.assign_async to execute the function
+    Phoenix.LiveView.Async.assign_async(socket, all_keys, async_fun, caller)
+  end
+
+  @doc """
+  Executes a list of assignments in dependency order and returns the results.
+  
+  This function is used by the `assign_async_new` macro to execute assignments
+  in the correct order based on their dependencies.
+  
+  ## Parameters
+  
+  * `assignments` - A list of assignment specifications, each being a tuple of:
+    * `key` - The key to assign the value to
+    * `deps` - A list of keys that this value depends on
+    * `fun` - A function that returns `{:ok, value}` or `{:error, reason}`
+  
+  ## Returns
+  
+  * `{:ok, map}` - A map of successful results
+  * `{:error, reason}` - An error reason
+  """
+  def execute_async_assignments(assignments) when is_list(assignments) do
+    IO.puts("execute_async_assignments called with #{length(assignments)} assignments")
+    IO.inspect(assignments, label: "Assignments")
+    
+    # Create a dependency graph
+    dependency_graph = build_dependency_graph(assignments)
+    IO.inspect(dependency_graph, label: "Dependency graph")
+    
+    # Create an agent to store intermediate results
+    {:ok, agent} = Agent.start_link(fn -> %{} end)
+    
+    try do
+      # Execute assignments in topological order
+      execute_assignments_in_order(assignments, dependency_graph, agent)
+      
+      # Get all results
+      results = Agent.get(agent, & &1)
+      IO.inspect(results, label: "Results from agent")
+      
+      # Check if any result is an error
+      if Enum.any?(results, fn {_key, result} ->
+           match?({:error, _}, result) || match?({:exit, _}, result)
+         end) do
+        # Return the first error
+        {_key, error} =
+          Enum.find(results, fn {_key, result} ->
+            match?({:error, _}, result) || match?({:exit, _}, result)
+          end)
+        
+        IO.puts("Error found: #{inspect(error)}")
+        error
+      else
+        # Create a map of successful results
+        result_map =
+          results
+          |> Enum.map(fn {key, {:ok, value}} -> {key, value} end)
+          |> Map.new()
+        
+        IO.puts("Success! Result map: #{inspect(result_map)}")
+        {:ok, result_map}
+      end
+    after
+      Agent.stop(agent)
+    end
+  end
+  
+  # Execute assignments in topological order
+  defp execute_assignments_in_order(assignments, dependency_graph, agent) do
+    # Find the execution order based on dependencies
+    execution_order = topological_sort(dependency_graph)
+    IO.puts("Execution order: #{inspect(execution_order)}")
+
+    # Execute each assignment in order
+    Enum.each(execution_order, fn key ->
+      IO.puts("Executing assignment for key: #{inspect(key)}")
+      
+      # Find the assignment spec
+      assignment_spec = Enum.find(assignments, fn {k, _, _} -> k == key end)
+      IO.inspect(assignment_spec, label: "Assignment spec for #{inspect(key)}")
+      
+      {_key, deps, fun} = assignment_spec
+
+      # Get the values of dependencies that are other assignments
+      dep_values =
+        deps
+        |> Enum.filter(fn dep -> Enum.any?(assignments, fn {k, _, _} -> k == dep end) end)
+        |> Enum.map(fn dep ->
+          case Agent.get(agent, fn state -> Map.get(state, dep) end) do
+            {:ok, value} -> {dep, value}
+            _ -> nil
+          end
+        end)
+        |> Enum.reject(&is_nil/1)
+        |> Map.new()
+      
+      IO.inspect(dep_values, label: "Dependency values for #{inspect(key)}")
+      IO.inspect(fun, label: "Function for #{inspect(key)}")
+
+      # Execute the function
+      result =
+        try do
+          IO.puts("Calling function for #{inspect(key)}")
+          fun_result = fun.(dep_values)
+          IO.inspect(fun_result, label: "Function result for #{inspect(key)}")
+          fun_result
+        catch
+          kind, reason -> 
+            IO.puts("Error calling function for #{inspect(key)}: #{inspect(kind)}, #{inspect(reason)}")
+            {:exit, {kind, reason, __STACKTRACE__}}
+        end
+
+      # Store the result
+      IO.puts("Storing result for #{inspect(key)}: #{inspect(result)}")
+      Agent.update(agent, fn state -> Map.put(state, key, result) end)
+    end)
+  end
+
+  # Build a dependency graph from the assignments
+  defp build_dependency_graph(assignments) do
+    Enum.reduce(assignments, %{}, fn {key, deps, _fun}, graph ->
+      # Add this node to the graph if it doesn't exist
+      graph = Map.put_new(graph, key, [])
+
+      # Add edges for each dependency
+      Enum.reduce(deps, graph, fn dep, acc_graph ->
+        # Only add dependencies that are keys in our assignments
+        if Enum.any?(assignments, fn {k, _, _} -> k == dep end) do
+          # Add this key as a dependent of the dependency
+          Map.update(acc_graph, dep, [key], fn dependents -> [key | dependents] end)
+        else
+          acc_graph
+        end
+      end)
+    end)
+  end
+
+  # Perform a topological sort to determine execution order
+  defp topological_sort(graph) do
+    {sorted, _} = do_topological_sort(graph, [], MapSet.new())
+    Enum.reverse(sorted)
+  end
+
+  defp do_topological_sort(graph, sorted, visited) do
+    # Find nodes with no dependencies (no incoming edges)
+    roots =
+      graph
+      |> Map.keys()
+      |> Enum.filter(fn node ->
+        not Enum.any?(graph, fn {_, deps} -> node in deps end) and
+          not MapSet.member?(visited, node)
+      end)
+
+    if Enum.empty?(roots) do
+      # If there are no roots but we still have unvisited nodes, there's a cycle
+      if Enum.any?(graph, fn {node, _} -> not MapSet.member?(visited, node) end) do
+        remaining = Enum.filter(Map.keys(graph), fn node -> not MapSet.member?(visited, node) end)
+        raise "Circular dependency detected in assign_async_new: #{inspect(remaining)}"
+      end
+
+      {sorted, visited}
+    else
+      # Visit each root
+      Enum.reduce(roots, {sorted, visited}, fn root, {acc_sorted, acc_visited} ->
+        # Mark this node as visited
+        new_visited = MapSet.put(acc_visited, root)
+
+        # Remove this node from the graph
+        new_graph = Map.delete(graph, root)
+
+        # Recursively visit its dependents
+        {new_sorted, new_visited} =
+          do_topological_sort(new_graph, [root | acc_sorted], new_visited)
+
+        {new_sorted, new_visited}
+      end)
+    end
+  end
+
   def stream_new(socket, key, deps, fun) do
     unless Map.has_key?(socket.assigns, :streams) &&
              Map.has_key?(socket.assigns.streams, key) &&

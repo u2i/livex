@@ -265,6 +265,12 @@ defmodule Livex.LivexComponent do
         Livex.Utils.send_message(__MODULE__, socket, event, payload)
       end
 
+      defmacro assign_async_new(socket, assignments) do
+        quote bind_quoted: [socket: socket, assignments: assignments, caller: __CALLER__] do
+          Livex.Utils.assign_async_new(socket, assignments, caller)
+        end
+      end
+
       @before_compile unquote(__MODULE__)
     end
   end
